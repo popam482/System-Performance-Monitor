@@ -6,14 +6,20 @@
 #include "mock/MockCpuCollector.hpp"
 #include <storage/CsvExport.hpp>
 
+#include <ctime>
+
 int main(){
     std::cout << " --- System Performance Monitor ---" << std::endl;
     std::unique_ptr<ICpuCollector> cpuCollector = std::make_unique<MockCpuCollector>();
     std::unique_ptr<CsvExport> csvExport = std::make_unique<CsvExport>("cpu_data.csv");
 
+    time_t timestamp;
+
     std::cout << "Collecting CPU data..." << std::endl;
     while(true){
         CpuData cpuData = cpuCollector->collectCpuData();
+        time(&timestamp);
+        std::cout << "Timestamp: " << std::ctime(&timestamp);
         std::cout << "CPU Name: " << cpuData.info.cpuName << std::endl;
         std::cout << "Physical Cores: " << cpuData.info.physicalCores << std::endl;
         std::cout << "Logical Threads: " << cpuData.info.logicalThreads << std::endl;
@@ -22,7 +28,7 @@ int main(){
         std::cout << "Current Usage (%): " << cpuData.metrics.usage << std::endl;
         std::cout << "Current Frequency (GHz): " << cpuData.metrics.currentFrequency << std::endl;
         std::cout << "-----------------------------" << std::endl;
-        csvExport->exportData(cpuCollector->collectCpuData());
+        csvExport->exportData(cpuData);
         std::this_thread::sleep_for(std::chrono::seconds(1)); // Sleep for 1 second before collecting data again
     }
     return 0;
