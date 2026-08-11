@@ -7,10 +7,12 @@
 #include <storage/CsvExport.hpp>
 
 #include <ctime>
+#include <collectors/CpuCollectorFactory.hpp>
 
 int main(){
     std::cout << " --- System Performance Monitor ---" << std::endl;
-    std::unique_ptr<ICpuCollector> cpuCollector = std::make_unique<MockCpuCollector>();
+    //std::unique_ptr<ICpuCollector> cpuCollector = std::make_unique<MockCpuCollector>();
+    std::unique_ptr<ICpuCollector> cpuCollector = CpuCollectorFactory::createCpuCollector();
     std::unique_ptr<CsvExport> csvExport = std::make_unique<CsvExport>("cpu_data.csv");
 
     time_t timestamp;

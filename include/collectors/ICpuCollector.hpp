@@ -1,5 +1,5 @@
 #pragma once
-#include "CpuData.hpp"
+#include "../models/CpuData.hpp"
 
 class ICpuCollector{
     public:
