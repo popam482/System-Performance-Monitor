@@ -51,8 +51,7 @@ int main(){
         std::cout << "-----------------------------" << std::endl;
         
         // Export data
-        csvExport->exportData(cpuData);
-        // TODO: Add RAM data export to CSV
+        csvExport->exportData(cpuData, ramData);
         
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
