@@ -4,7 +4,6 @@ project(System_Performance_Monitor)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Detectare platformă
 if(WIN32)
     set(PLATFORM_SOURCES
         src/collectors/windows/WindowsCpuCollector.cpp
@@ -22,14 +21,18 @@ endif()
 add_executable(System_Performance_Monitor 
     src/main.cpp
     src/collectors/CpuCollectorFactory.cpp
+    src/collectors/MemoryCollectorFactory.cpp
     src/storage/CsvExport.cpp
-    src/collectors/windows/WindowsCpuCollector.cpp
+    src/collectors/windows/WindowsCpuCollector.cpp 
+    src/collectors/windows/WindowsMemoryCollector.cpp
     ${PLATFORM_SOURCES}
 )
+
 
 target_include_directories(System_Performance_Monitor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/collectors
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mock
     ${CMAKE_CURRENT_SOURCE_DIR}/include/models
     ${CMAKE_CURRENT_SOURCE_DIR}/include/storage
 )

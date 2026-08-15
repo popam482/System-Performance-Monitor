@@ -1,5 +1,5 @@
 #pragma once
-#include "models/RamData.hpp"
+#include "../models/RamData.hpp"
 
 class IMemoryCollector{
     public:
