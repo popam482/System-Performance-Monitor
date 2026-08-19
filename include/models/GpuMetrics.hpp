@@ -1,7 +1,7 @@
 #pragma once
 
 struct GpuMetrics {
-    double usagepercentage;
+    double usagePercentage;
     double usedVramMB;
     double temperatureC;
 };
