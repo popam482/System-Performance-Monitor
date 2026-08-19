@@ -2,7 +2,8 @@
 #include <string>
 #include <fstream>
 #include "CpuData.hpp"
-#include <RamData.hpp>
+#include "RamData.hpp"
+#include "GpuData.hpp"
 
 class CsvExport {
     private:
@@ -14,5 +15,6 @@ class CsvExport {
         ~CsvExport();
         void exportCpuData(const CpuData &cpuData);
         void exportMemoryData(const RamData &ramData);
-        void exportData(const CpuData &cpuData, const RamData &ramData);
+        void exportGpuData(const GpuData &gpuData);
+        void exportData(const CpuData &cpuData, const RamData &ramData, const GpuData &gpuData);
 };

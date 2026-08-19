@@ -22,9 +22,11 @@ add_executable(System_Performance_Monitor
     src/main.cpp
     src/collectors/CpuCollectorFactory.cpp
     src/collectors/MemoryCollectorFactory.cpp
+    src/collectors/GpuCollectorFactory.cpp
     src/storage/CsvExport.cpp
     src/collectors/windows/WindowsCpuCollector.cpp 
     src/collectors/windows/WindowsMemoryCollector.cpp
+    src/collectors/windows/WindowsGpuCollector.cpp
     ${PLATFORM_SOURCES}
 )
 

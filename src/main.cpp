@@ -8,6 +8,7 @@
 #include "storage/CsvExport.hpp"
 #include "collectors/CpuCollectorFactory.hpp"
 #include "collectors/MemoryCollectorFactory.hpp"
+#include "collectors/GpuCollectorFactory.hpp"
 
 #include <ctime>
 #include <iomanip>
@@ -18,6 +19,7 @@ int main(){
     // Create collectors
     std::unique_ptr<ICpuCollector> cpuCollector = CpuCollectorFactory::createCpuCollector();
     std::unique_ptr<IMemoryCollector> memoryCollector = MemoryCollectorFactory::createMemoryCollector();
+    std::unique_ptr<IGpuCollector> gpuCollector = GpuCollectorFactory::createGpuCollector();
     std::unique_ptr<CsvExport> csvExport = std::make_unique<CsvExport>("system_data.csv");
 
     time_t timestamp;
@@ -26,6 +28,7 @@ int main(){
     while(true){
         CpuData cpuData = cpuCollector->collectCpuData();
         RamData ramData = memoryCollector->collectMemoryData();
+        GpuData gpuData = gpuCollector->collectGpuData();
         time(&timestamp);
         
         // Display CPU data
@@ -50,8 +53,16 @@ int main(){
                   << ramData.metrics.usagePercentage << std::endl;
         std::cout << "-----------------------------" << std::endl;
         
+        // Display GPU data
+        std::cout << "\n=== GPU DATA ===" << std::endl;
+        std::cout << "GPU Name: " << gpuData.info.gpuName << std::endl;
+        std::cout << "VRAM (MB): " << gpuData.info.totalVramMB << std::endl;
+        std::cout << "Usage Percentage (%): " << std::fixed << std::setprecision(2) 
+                  << gpuData.metrics.usagePercentage << std::endl;
+        std::cout << "-----------------------------" << std::endl;
+
         // Export data
-        csvExport->exportData(cpuData, ramData);
+        csvExport->exportData(cpuData, ramData, gpuData);
         
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }

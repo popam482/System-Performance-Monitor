@@ -64,13 +64,41 @@ void CsvExport::exportMemoryData(const RamData &ramData) {
     }
 }
 
-void CsvExport::exportData(const CpuData &cpuData, const RamData &ramData) {
+void CsvExport::exportGpuData(const GpuData &gpuData) {
+
+    if(file.is_open()){
+        if(!headerWritten){
+            file << "Timestamp,Type,GPU Name,Total VRAM (MB),Driver Version,"
+                 << "Usage Percentage (%),Used VRAM (MB),Temperature (C)" 
+                 << std::endl;
+            headerWritten = true;
+        }
+
+        std::time_t now = std::time(nullptr);
+        std::tm *localTime = std::localtime(&now);
+        char timeBuffer[20];
+        std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
+
+        file << timeBuffer << ",GPU,"
+             << gpuData.info.gpuName << ","
+             << gpuData.info.totalVramMB << ","
+             << gpuData.info.driverVersion << ","
+             << gpuData.metrics.usagePercentage << ","
+             << gpuData.metrics.usedVramMB << ","
+             << gpuData.metrics.temperatureC << std::endl;
+        file.flush();
+    }
+
+}
+
+void CsvExport::exportData(const CpuData &cpuData, const RamData &ramData, const GpuData &gpuData) {
     if (file.is_open()) {
         if (!headerWritten) {
             file << "Timestamp,Type,CPU Name,Physical Cores,Logical Threads,"
                  << "Base Frequency (GHz),Max Frequency (GHz),CPU Usage (%),"
                  << "Current Frequency (GHz),Total Memory (MB),RAM Type,"
-                 << "Used Memory (MB),Available Memory (MB),RAM Usage (%)" 
+                 << "Used Memory (MB),Available Memory (MB),RAM Usage (%)," 
+                 << "GPU Name,Total VRAM (MB),Driver Version,Usage Percentage (%),Used VRAM (MB),Temperature (C)"
                  << std::endl;
             headerWritten = true;
         }
@@ -92,7 +120,13 @@ void CsvExport::exportData(const CpuData &cpuData, const RamData &ramData) {
              << ramData.info.ramType << ","
              << ramData.metrics.usedMemoryMB << ","
              << ramData.metrics.availableMemoryMB << ","
-             << ramData.metrics.usagePercentage << std::endl;
+             << ramData.metrics.usagePercentage << ","
+             << gpuData.info.gpuName << ","
+             << gpuData.info.totalVramMB << ","
+             << gpuData.info.driverVersion << ","
+             << gpuData.metrics.usagePercentage << ","
+             << gpuData.metrics.usedVramMB << ","
+             << gpuData.metrics.temperatureC << std::endl;
         file.flush();
     }
 }
