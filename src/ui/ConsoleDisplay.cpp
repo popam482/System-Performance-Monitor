@@ -14,7 +14,7 @@ void ConsoleDisplay::renderProgressBar(double percentage, int width) {
     std::cout << "] " << std::fixed << std::setprecision(1) << percentage << "%";
 }
 
-void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, const GpuData& gpu) {
+void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, const GpuData& gpu, const DiskData& disk) {
     #ifdef _WIN32
         std::system("cls");
     #endif
@@ -46,6 +46,15 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
               << (gpu.metrics.usedVramMB / 1024.0) << " GB\n";
     std::cout << " Engine Usage  : ";
     renderProgressBar(gpu.metrics.usagePercentage);
+    std::cout << "\n\n";
+
+    // 4.Disk section
+    std::cout << "[ Disk ] " << disk.info.driveLetter << "\n";
+    std::cout << " Total / Used  : " << std::fixed << std::setprecision(2)
+              << disk.info.totalSpaceGB << " GB / "
+              << disk.metrics.usedSpaceGB << " GB\n";
+    std::cout << " Usage         : ";
+    renderProgressBar(disk.metrics.usagePercentage);
     std::cout << "\n\n";
 
     std::cout << "=======================================================================\n";

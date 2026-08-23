@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(WIN32)
     set(PLATFORM_SOURCES
         src/collectors/windows/WindowsCpuCollector.cpp
+        src/collectors/windows/WindowsDiskCollector.cpp
     )
 elseif(UNIX AND NOT APPLE)
     set(PLATFORM_SOURCES
