@@ -5,6 +5,7 @@
 #include <pdh.h>
 #include <windows.h>
 #include <string>
+#include <dxgi.h>
 
 class WindowsGpuCollector : public IGpuCollector {
 private:

@@ -40,5 +40,5 @@ target_include_directories(System_Performance_Monitor PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32)
+    target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi)
 endif()
