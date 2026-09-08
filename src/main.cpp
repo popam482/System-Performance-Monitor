@@ -6,24 +6,23 @@
 #include "collectors/windows/WindowsGpuCollector.hpp"
 #include "collectors/windows/WindowsDiskCollector.hpp"
 #include "ui/ConsoleDisplay.hpp"
+#include "core/SystemMonitor.hpp"
 
 
 int main() {
-    auto cpuCollector = CpuCollectorFactory::createCpuCollector();
-    auto ramCollector = MemoryCollectorFactory::createMemoryCollector();
-    auto gpuCollector = std::make_unique<WindowsGpuCollector>();
-    auto diskCollector = std::make_unique<WindowsDiskCollector>("C:\\");
 
-    while (true) {
-        CpuData cpu = cpuCollector->collectCpuData();
-        RamData ram = ramCollector->collectMemoryData();
-        GpuData gpu = gpuCollector->collectGpuData();
-        DiskData disk = diskCollector->collectDiskData();
+    SystemMonitor systemMonitor;
+    systemMonitor.start();
 
-        ConsoleDisplay::renderDashboard(cpu, ram, gpu, disk);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300)); 
 
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+    while(true){
+        SystemSnapshot snapshot = systemMonitor.getLatestSnapshot();
+        ConsoleDisplay::renderDashboard(snapshot.cpuData, snapshot.ramData, snapshot.gpuData, snapshot.diskData);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Update every second
     }
+
+   
 
     return 0;
 }
