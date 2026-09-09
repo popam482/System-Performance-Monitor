@@ -6,6 +6,8 @@
 #include "collectors/IGpuCollector.hpp"
 #include "collectors/IDiskCollector.hpp"
 
+#include "storage/CsvExport.hpp"
+
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -28,6 +30,9 @@ private:
 
     std::atomic<int> sampleIntervalMs{1000};// default 1 second
 
+    std::unique_ptr<CsvExport> csvLogger;
+    std::atomic<bool> loggingEnabled{false};
+
 public:
     SystemMonitor();
     ~SystemMonitor();
@@ -36,6 +41,9 @@ public:
     void stop();
     void setIntervalMs(int ms);
     int getIntervalMs() const;
+
+    void enableLogging(bool enable, const std::string& filename = "system_metrics.csv");
+    bool isLoggingEnabled() const;
 
     SystemSnapshot getLatestSnapshot() const;
 };

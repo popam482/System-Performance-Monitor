@@ -1,20 +1,25 @@
-# pragma once
+#pragma once
+
+#include "models/SystemSnapshot.hpp"
 #include <string>
 #include <fstream>
-#include "CpuData.hpp"
-#include "RamData.hpp"
-#include "GpuData.hpp"
+#include <mutex>
 
 class CsvExport {
-    private:
-        std::string filename;
-        std::ofstream file;
-        bool headerWritten;
-    public:
-        CsvExport(const std::string &filename);
-        ~CsvExport();
-        void exportCpuData(const CpuData &cpuData);
-        void exportMemoryData(const RamData &ramData);
-        void exportGpuData(const GpuData &gpuData);
-        void exportData(const CpuData &cpuData, const RamData &ramData, const GpuData &gpuData);
+private:
+    std::string filePath;
+    std::ofstream fileStream;
+    std::mutex fileMutex;
+    bool isHeaderWritten = false;
+
+    std::string getCurrentTimestamp();
+    void writeHeader();
+
+public:
+    CsvExport(const std::string& filename = "system_metrics.csv");
+    ~CsvExport();
+
+    bool openFile(const std::string& filename);
+    void closeFile();
+    void logSnapshot(const SystemSnapshot& snapshot);
 };

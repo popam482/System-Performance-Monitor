@@ -1,132 +1,82 @@
-#include "CsvExport.hpp"
-#include <ctime>
+#include "storage/CsvExport.hpp"
+#include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
-CsvExport::CsvExport(const std::string &filename) : filename(filename) {
-    file.open(filename, std::ios::out);
-    headerWritten = false;
+CsvExport::CsvExport(const std::string& filename) {
+    openFile(filename);
 }
 
 CsvExport::~CsvExport() {
-    if (file.is_open()) {
-        file.close();
+    closeFile();
+}
+
+std::string CsvExport::getCurrentTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto timeT = std::chrono::system_clock::to_time_t(now);
+    std::tm tmBuffer;
+
+#ifdef _WIN32
+    localtime_s(&tmBuffer, &timeT);
+#else
+    localtime_r(&timeT, &tmBuffer);
+#endif
+
+    std::ostringstream ss;
+    ss << std::put_time(&tmBuffer, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+bool CsvExport::openFile(const std::string& filename) {
+    std::lock_guard<std::mutex> lock(fileMutex);
+    filePath = filename;
+
+    std::ifstream checkFile(filePath);
+    bool fileExists = checkFile.good();
+    checkFile.close();
+
+    fileStream.open(filePath, std::ios::out | std::ios::app);
+    if (!fileStream.is_open()) return false;
+
+    if (!fileExists) {
+        writeHeader();
+    } else {
+        isHeaderWritten = true;
+    }
+
+    return true;
+}
+
+void CsvExport::writeHeader() {
+    if (fileStream.is_open() && !isHeaderWritten) {
+        fileStream << "Timestamp,CPU_Usage_%,RAM_Used_MB,RAM_Total_MB,RAM_Usage_%,GPU_Usage_%,VRAM_Used_MB,Disk_Used_GB,Disk_Total_GB\n";
+        fileStream.flush();
+        isHeaderWritten = true;
     }
 }
 
-void CsvExport::exportCpuData(const CpuData &cpuData) {
-    if (file.is_open()) {
-        if (!headerWritten) {
-            file << "Timestamp,Type,CPU Name,Physical Cores,Logical Threads,"
-                 << "Base Frequency (GHz),Max Frequency (GHz),Current Usage (%),Current Frequency (GHz)" 
-                 << std::endl;
-            headerWritten = true;
-        }
-
-        std::time_t now = std::time(nullptr);
-        std::tm *localTime = std::localtime(&now);
-        char timeBuffer[20];
-        std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
-
-        file << timeBuffer << ",CPU,"
-             << cpuData.info.cpuName << ","
-             << cpuData.info.physicalCores << ","
-             << cpuData.info.logicalThreads << ","
-             << cpuData.info.baseFrequencyGHz << ","
-             << cpuData.info.maxFrequencyGHz << ","
-             << cpuData.metrics.usage << ","
-             << cpuData.metrics.currentFrequency << std::endl;
-        file.flush();
+void CsvExport::closeFile() {
+    std::lock_guard<std::mutex> lock(fileMutex);
+    if (fileStream.is_open()) {
+        fileStream.close();
     }
 }
 
-void CsvExport::exportMemoryData(const RamData &ramData) {
-    if (file.is_open()) {
-        if (!headerWritten) {
-            file << "Timestamp,Type,Total Memory (MB),RAM Type,Used Memory (MB),"
-                 << "Available Memory (MB),Usage Percentage (%)" 
-                 << std::endl;
-            headerWritten = true;
-        }
+void CsvExport::logSnapshot(const SystemSnapshot& snapshot) {
+    std::lock_guard<std::mutex> lock(fileMutex);
+    if (!fileStream.is_open()) return;
 
-        std::time_t now = std::time(nullptr);
-        std::tm *localTime = std::localtime(&now);
-        char timeBuffer[20];
-        std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
+    fileStream << getCurrentTimestamp() << ","
+               << std::fixed << std::setprecision(2)
+               << snapshot.cpuData.metrics.usage << ","
+               << snapshot.ramData.metrics.usedMemoryMB << ","
+               << snapshot.ramData.info.totalMemoryBytes << ","
+               << snapshot.ramData.metrics.usagePercentage << ","
+               << snapshot.gpuData.metrics.usagePercentage << ","
+               << snapshot.gpuData.metrics.usedVramMB << ","
+               << snapshot.diskData.metrics.usedSpaceGB << ","
+               << snapshot.diskData.info.totalSpaceGB << "\n";
 
-        file << timeBuffer << ",RAM,"
-             << (ramData.info.totalMemoryBytes / (1024 * 1024)) << ","
-             << ramData.info.ramType << ","
-             << ramData.metrics.usedMemoryMB << ","
-             << ramData.metrics.availableMemoryMB << ","
-             << ramData.metrics.usagePercentage << std::endl;
-        file.flush();
-    }
-}
-
-void CsvExport::exportGpuData(const GpuData &gpuData) {
-
-    if(file.is_open()){
-        if(!headerWritten){
-            file << "Timestamp,Type,GPU Name,Total VRAM (MB),Driver Version,"
-                 << "Usage Percentage (%),Used VRAM (MB),Temperature (C)" 
-                 << std::endl;
-            headerWritten = true;
-        }
-
-        std::time_t now = std::time(nullptr);
-        std::tm *localTime = std::localtime(&now);
-        char timeBuffer[20];
-        std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
-
-        file << timeBuffer << ",GPU,"
-             << gpuData.info.gpuName << ","
-             << gpuData.info.totalVramMB << ","
-             << gpuData.info.driverVersion << ","
-             << gpuData.metrics.usagePercentage << ","
-             << gpuData.metrics.usedVramMB << ","
-             << gpuData.metrics.temperatureC << std::endl;
-        file.flush();
-    }
-
-}
-
-void CsvExport::exportData(const CpuData &cpuData, const RamData &ramData, const GpuData &gpuData) {
-    if (file.is_open()) {
-        if (!headerWritten) {
-            file << "Timestamp,Type,CPU Name,Physical Cores,Logical Threads,"
-                 << "Base Frequency (GHz),Max Frequency (GHz),CPU Usage (%),"
-                 << "Current Frequency (GHz),Total Memory (MB),RAM Type,"
-                 << "Used Memory (MB),Available Memory (MB),RAM Usage (%)," 
-                 << "GPU Name,Total VRAM (MB),Driver Version,Usage Percentage (%),Used VRAM (MB),Temperature (C)"
-                 << std::endl;
-            headerWritten = true;
-        }
-
-        std::time_t now = std::time(nullptr);
-        std::tm *localTime = std::localtime(&now);
-        char timeBuffer[20];
-        std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
-
-        file << timeBuffer << ",SYSTEM,"
-             << cpuData.info.cpuName << ","
-             << cpuData.info.physicalCores << ","
-             << cpuData.info.logicalThreads << ","
-             << cpuData.info.baseFrequencyGHz << ","
-             << cpuData.info.maxFrequencyGHz << ","
-             << cpuData.metrics.usage << ","
-             << cpuData.metrics.currentFrequency << ","
-             << (ramData.info.totalMemoryBytes / (1024 * 1024)) << ","
-             << ramData.info.ramType << ","
-             << ramData.metrics.usedMemoryMB << ","
-             << ramData.metrics.availableMemoryMB << ","
-             << ramData.metrics.usagePercentage << ","
-             << gpuData.info.gpuName << ","
-             << gpuData.info.totalVramMB << ","
-             << gpuData.info.driverVersion << ","
-             << gpuData.metrics.usagePercentage << ","
-             << gpuData.metrics.usedVramMB << ","
-             << gpuData.metrics.temperatureC << std::endl;
-        file.flush();
-    }
+    fileStream.flush(); 
 }
