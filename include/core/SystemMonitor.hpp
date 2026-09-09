@@ -26,12 +26,16 @@ private:
 
     void collectionLoop(); // runs on the secondary thread
 
+    std::atomic<int> sampleIntervalMs{1000};// default 1 second
+
 public:
     SystemMonitor();
     ~SystemMonitor();
 
     void start();
     void stop();
+    void setIntervalMs(int ms);
+    int getIntervalMs() const;
 
     SystemSnapshot getLatestSnapshot() const;
 };

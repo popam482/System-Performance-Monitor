@@ -50,13 +50,18 @@ void SystemMonitor::collectionLoop(){
             currentSnapshot = {cpu, ram, gpu, disk};
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // collect data every second
+        std::this_thread::sleep_for(std::chrono::milliseconds(sampleIntervalMs.load())); 
 
     }
 
 }
 
-SystemSnapshot SystemMonitor::getLatestSnapshot() const {
-    std::lock_guard<std::mutex> lock(dataMutex);
-    return currentSnapshot;
+void SystemMonitor::setIntervalMs(int ms) {
+    if (ms > 0) {
+        sampleIntervalMs = ms;
+    }
+}
+
+int SystemMonitor::getIntervalMs() const {
+    return sampleIntervalMs.load();
 }
