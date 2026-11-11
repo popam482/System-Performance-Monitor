@@ -1,3 +1,5 @@
+#pragma once
+
 #include "models/CpuData.hpp"
 #include "models/RamData.hpp"
 #include "models/GpuData.hpp"
