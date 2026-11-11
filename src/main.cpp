@@ -1,14 +1,25 @@
 #include <thread>
 #include <chrono>
-#include <memory>
-#include "collectors/CpuCollectorFactory.hpp"
-#include "collectors/MemoryCollectorFactory.hpp"
-#include "collectors/windows/WindowsGpuCollector.hpp"
-#include "collectors/windows/WindowsDiskCollector.hpp"
-#include "ui/ConsoleDisplay.hpp"
-#include "core/SystemMonitor.hpp"
 #include <iostream>
 
+#include "ui/ConsoleDisplay.hpp"
+#include "core/SystemMonitor.hpp"
+
+#ifdef _WIN32
+#include <conio.h>
+#endif
+
+namespace {
+bool userRequestedDashboardExit() {
+#ifdef _WIN32
+    if (_kbhit()) {
+        const int key = _getch();
+        return key == 'q' || key == 'Q';
+    }
+#endif
+    return false;
+}
+} // namespace
 
 void displayMenu(int currentInterval, bool loggingActive) {
     std::cout << "\n=========================================\n";
@@ -20,18 +31,18 @@ void displayMenu(int currentInterval, bool loggingActive) {
     std::cout << " 4. Exit Application\n";
     std::cout << "=========================================\n";
     std::cout << " Select an option (1-4): ";
+    std::cout.flush();
 }
 
 int main() {
-
     SystemMonitor systemMonitor;
     systemMonitor.start();
 
     bool running = true;
 
-while (running) {
+    while (running) {
         displayMenu(systemMonitor.getIntervalMs(), systemMonitor.isLoggingEnabled());
-        
+
         int choice;
         if (!(std::cin >> choice)) {
             std::cin.clear();
@@ -42,24 +53,47 @@ while (running) {
         switch (choice) {
             case 1: {
                 std::cout << "\nStarting Live Dashboard...\n";
+                std::cout.flush();
+
+                // Give the background collector a moment to produce the first sample.
                 std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                
-                while (true) {
+
+                bool showDashboard = true;
+                while (showDashboard) {
+                    if (userRequestedDashboardExit()) {
+                        break;
+                    }
+
                     SystemSnapshot snapshot = systemMonitor.getLatestSnapshot();
-                    ConsoleDisplay::renderDashboard(snapshot.cpuData, snapshot.ramData, snapshot.gpuData, snapshot.diskData);
-                    
+                    ConsoleDisplay::renderDashboard(
+                        snapshot.cpuData,
+                        snapshot.ramData,
+                        snapshot.gpuData,
+                        snapshot.diskData
+                    );
+
                     if (systemMonitor.isLoggingEnabled()) {
                         std::cout << " [ CSV Logging: ACTIVE -> system_metrics.csv ]\n";
+                        std::cout.flush();
                     }
-                    std::cout << " [ Press Ctrl+C to return to menu ]\n";
-                    
-                    std::this_thread::sleep_for(std::chrono::milliseconds(systemMonitor.getIntervalMs()));
+
+                    const int intervalMs = systemMonitor.getIntervalMs();
+                    const int sliceMs = 50;
+                    for (int waited = 0; waited < intervalMs; waited += sliceMs) {
+                        if (userRequestedDashboardExit()) {
+                            showDashboard = false;
+                            break;
+                        }
+                        std::this_thread::sleep_for(std::chrono::milliseconds(sliceMs));
+                    }
                 }
+                std::cout << "\nReturned to menu.\n";
                 break;
             }
             case 2: {
                 int newInterval;
                 std::cout << "\nEnter new interval in milliseconds (min 100): ";
+                std::cout.flush();
                 if (std::cin >> newInterval && newInterval >= 100) {
                     systemMonitor.setIntervalMs(newInterval);
                     std::cout << "Interval updated to " << newInterval << " ms.\n";
@@ -85,7 +119,6 @@ while (running) {
         }
     }
 
-   
-
+    systemMonitor.stop();
     return 0;
 }

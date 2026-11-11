@@ -1,7 +1,37 @@
 #include "ui/ConsoleDisplay.hpp"
 #include <iostream>
 #include <iomanip>
-#include <cstdlib>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+namespace {
+void clearScreen() {
+#ifdef _WIN32
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (console == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    CONSOLE_SCREEN_BUFFER_INFO bufferInfo;
+    if (!GetConsoleScreenBufferInfo(console, &bufferInfo)) {
+        return;
+    }
+
+    const DWORD cellCount =
+        static_cast<DWORD>(bufferInfo.dwSize.X) * static_cast<DWORD>(bufferInfo.dwSize.Y);
+    DWORD written = 0;
+    COORD home = {0, 0};
+
+    FillConsoleOutputCharacterA(console, ' ', cellCount, home, &written);
+    FillConsoleOutputAttribute(console, bufferInfo.wAttributes, cellCount, home, &written);
+    SetConsoleCursorPosition(console, home);
+#else
+    std::cout << "\033[2J\033[H";
+#endif
+}
+} // namespace
 
 void ConsoleDisplay::renderProgressBar(double percentage, int width) {
     int pos = static_cast<int>((percentage / 100.0) * width);
@@ -15,9 +45,7 @@ void ConsoleDisplay::renderProgressBar(double percentage, int width) {
 }
 
 void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, const GpuData& gpu, const DiskData& disk) {
-    #ifdef _WIN32
-        std::system("cls");
-    #endif
+    clearScreen();
 
     std::cout << "=======================================================================\n";
     std::cout << "                   SYSTEM PERFORMANCE MONITOR (LIVE)                  \n";
@@ -32,9 +60,9 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
 
     // 2.RAM section
     std::cout << "[ RAM ] Memory Status\n";
-    std::cout << " Total / Used  : " << std::fixed << std::setprecision(2) 
-              << (ram.info.totalMemoryBytes / 1024.0 / 1024.0) << " GB / " 
-              << (ram.metrics.usedMemoryMB / 1024.0 / 1024.0) << " GB\n";
+    std::cout << " Total / Used  : " << std::fixed << std::setprecision(2)
+              << (ram.info.totalMemoryBytes / 1024.0 / 1024.0 / 1024.0) << " GB / "
+              << (ram.metrics.usedMemoryMB / 1024.0) << " GB\n";
     std::cout << " Usage         : ";
     renderProgressBar(ram.metrics.usagePercentage);
     std::cout << "\n\n";
@@ -58,5 +86,6 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     std::cout << "\n\n";
 
     std::cout << "=======================================================================\n";
-    std::cout << " Press Ctrl + C to stop monitoring and return...\n";
+    std::cout << " Press Q to return to menu\n";
+    std::cout.flush();
 }
