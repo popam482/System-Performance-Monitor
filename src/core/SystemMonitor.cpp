@@ -23,14 +23,14 @@ SystemMonitor::~SystemMonitor() {
 }
 
 void SystemMonitor::start() {
-    if (isRunning) return; // Already running
+    if (isRunning) return;
 
     isRunning = true;
     workerThread = std::thread(&SystemMonitor::collectionLoop, this);
 }
 
 void SystemMonitor::stop() {
-    if (!isRunning) return; // Not running
+    if (!isRunning) return;
 
     isRunning = false;
     if (workerThread.joinable()) {
@@ -38,33 +38,34 @@ void SystemMonitor::stop() {
     }
 }
 
-void SystemMonitor::collectionLoop(){
+void SystemMonitor::collectionLoop() {
     while (isRunning) {
         CpuData cpu = cpuCollector ? cpuCollector->collectCpuData() : CpuData{};
         RamData ram = ramCollector ? ramCollector->collectMemoryData() : RamData{};
         GpuData gpu = gpuCollector ? gpuCollector->collectGpuData() : GpuData{};
         DiskData disk = diskCollector ? diskCollector->collectDiskData() : DiskData{};
-        
+
         {
             std::lock_guard<std::mutex> lock(dataMutex);
-            {
-                std::lock_guard<std::mutex> lock(dataMutex);
-                currentSnapshot.cpuData = cpu;
-                currentSnapshot.ramData = ram;
-                currentSnapshot.gpuData = gpu;
-                currentSnapshot.diskData = disk;
-            }
             currentSnapshot = {cpu, ram, gpu, disk};
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(sampleIntervalMs.load())); 
-
         if (loggingEnabled.load() && csvLogger) {
-            csvLogger->logSnapshot(currentSnapshot);
+            SystemSnapshot snapshotCopy;
+            {
+                std::lock_guard<std::mutex> lock(dataMutex);
+                snapshotCopy = currentSnapshot;
+            }
+            csvLogger->logSnapshot(snapshotCopy);
         }
 
+        std::this_thread::sleep_for(std::chrono::milliseconds(sampleIntervalMs.load()));
     }
+}
 
+SystemSnapshot SystemMonitor::getLatestSnapshot() const {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return currentSnapshot;
 }
 
 void SystemMonitor::setIntervalMs(int ms) {

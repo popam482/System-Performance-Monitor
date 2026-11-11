@@ -42,8 +42,9 @@ while (running) {
         switch (choice) {
             case 1: {
                 std::cout << "\nStarting Live Dashboard...\n";
+                std::cout.flush();
                 std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                
+
                 while (true) {
                     SystemSnapshot snapshot = systemMonitor.getLatestSnapshot();
                     ConsoleDisplay::renderDashboard(snapshot.cpuData, snapshot.ramData, snapshot.gpuData, snapshot.diskData);

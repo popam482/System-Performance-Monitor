@@ -59,4 +59,5 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
 
     std::cout << "=======================================================================\n";
     std::cout << " Press Ctrl + C to stop monitoring and return...\n";
+    std::cout.flush();
 }
