@@ -19,8 +19,10 @@ void displayMenu(int currentInterval, bool loggingActive) {
 }
 
 int main() {
+    std::cout << "System Performance Monitor starting...\n";
+    std::cout.flush();
+
     SystemMonitor systemMonitor;
-    systemMonitor.start();
 
     bool running = true;
 
@@ -36,33 +38,24 @@ int main() {
 
         switch (choice) {
             case 1: {
-                std::cout << "\nStarting Live Dashboard...\n";
-                std::cout << "(waiting for first sample)\n";
-                std::cout.flush();
+                // Ensure background worker is stopped so collectors are not used
+                // from two threads at once (PDH is not thread-safe).
+                systemMonitor.stop();
 
-                // Wait until the worker has produced at least one non-empty-looking sample,
-                // but never block forever on a lock held by a deadlocked worker.
-                std::this_thread::sleep_for(std::chrono::milliseconds(1200));
-
-                std::cout << "Fetching snapshot...\n";
-                std::cout.flush();
-                SystemSnapshot first = systemMonitor.getLatestSnapshot();
-                std::cout << "Snapshot OK. Rendering dashboard...\n";
+                std::cout << "\nStarting Live Dashboard (main-thread sampling)...\n";
                 std::cout.flush();
 
                 while (true) {
-                    SystemSnapshot snapshot = systemMonitor.getLatestSnapshot();
+                    std::cout << "\n--- sampling ---\n";
+                    std::cout.flush();
+
+                    SystemSnapshot snapshot = systemMonitor.sampleOnce();
                     ConsoleDisplay::renderDashboard(
                         snapshot.cpuData,
                         snapshot.ramData,
                         snapshot.gpuData,
                         snapshot.diskData
                     );
-
-                    if (systemMonitor.isLoggingEnabled()) {
-                        std::cout << " [ CSV Logging: ACTIVE -> system_metrics.csv ]\n";
-                        std::cout.flush();
-                    }
 
                     std::this_thread::sleep_for(
                         std::chrono::milliseconds(systemMonitor.getIntervalMs())

@@ -38,27 +38,29 @@ void SystemMonitor::stop() {
     }
 }
 
+SystemSnapshot SystemMonitor::sampleOnce() {
+    CpuData cpu = cpuCollector ? cpuCollector->collectCpuData() : CpuData{};
+    RamData ram = ramCollector ? ramCollector->collectMemoryData() : RamData{};
+    GpuData gpu = gpuCollector ? gpuCollector->collectGpuData() : GpuData{};
+    DiskData disk = diskCollector ? diskCollector->collectDiskData() : DiskData{};
+
+    SystemSnapshot snapshot{cpu, ram, gpu, disk};
+
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        currentSnapshot = snapshot;
+    }
+
+    if (loggingEnabled.load() && csvLogger) {
+        csvLogger->logSnapshot(snapshot);
+    }
+
+    return snapshot;
+}
+
 void SystemMonitor::collectionLoop() {
     while (isRunning) {
-        CpuData cpu = cpuCollector ? cpuCollector->collectCpuData() : CpuData{};
-        RamData ram = ramCollector ? ramCollector->collectMemoryData() : RamData{};
-        GpuData gpu = gpuCollector ? gpuCollector->collectGpuData() : GpuData{};
-        DiskData disk = diskCollector ? diskCollector->collectDiskData() : DiskData{};
-
-        {
-            std::lock_guard<std::mutex> lock(dataMutex);
-            currentSnapshot = {cpu, ram, gpu, disk};
-        }
-
-        if (loggingEnabled.load() && csvLogger) {
-            SystemSnapshot snapshotCopy;
-            {
-                std::lock_guard<std::mutex> lock(dataMutex);
-                snapshotCopy = currentSnapshot;
-            }
-            csvLogger->logSnapshot(snapshotCopy);
-        }
-
+        sampleOnce();
         std::this_thread::sleep_for(std::chrono::milliseconds(sampleIntervalMs.load()));
     }
 }

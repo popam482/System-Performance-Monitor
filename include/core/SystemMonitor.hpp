@@ -46,4 +46,7 @@ public:
     bool isLoggingEnabled() const;
 
     SystemSnapshot getLatestSnapshot() const;
+
+    // Collect on the calling thread (used by the live dashboard).
+    SystemSnapshot sampleOnce();
 };

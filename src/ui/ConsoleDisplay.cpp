@@ -3,6 +3,9 @@
 #include <iomanip>
 
 void ConsoleDisplay::renderProgressBar(double percentage, int width) {
+    if (percentage < 0.0) percentage = 0.0;
+    if (percentage > 100.0) percentage = 100.0;
+
     int pos = static_cast<int>((percentage / 100.0) * width);
     std::cout << "[";
     for (int i = 0; i < width; ++i) {
@@ -14,15 +17,12 @@ void ConsoleDisplay::renderProgressBar(double percentage, int width) {
 }
 
 void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, const GpuData& gpu, const DiskData& disk) {
-    // Do NOT use system("cls") — it often hangs in VS Code / MinGW terminals.
-    // ANSI clear works in Windows Terminal and VS Code; if unsupported, frames just scroll.
-    std::cout << "\033[2J\033[H";
-
-    std::cout << "=======================================================================\n";
+    // No screen clear: system("cls") and ANSI clears can hang or blank VS Code terminals.
+    std::cout << "\n=======================================================================\n";
     std::cout << "                   SYSTEM PERFORMANCE MONITOR (LIVE)                  \n";
     std::cout << "=======================================================================\n\n";
 
-    std::cout << "[ CPU ] " << cpu.info.cpuName << "\n";
+    std::cout << "[ CPU ] " << (cpu.info.cpuName.empty() ? "(reading...)" : cpu.info.cpuName) << "\n";
     std::cout << " Cores/Threads : " << cpu.info.physicalCores << " Cores / " << cpu.info.logicalThreads << " Threads\n";
     std::cout << " Usage         : ";
     renderProgressBar(cpu.metrics.usage);
@@ -36,7 +36,7 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     renderProgressBar(ram.metrics.usagePercentage);
     std::cout << "\n\n";
 
-    std::cout << "[ GPU ] " << gpu.info.gpuName << "\n";
+    std::cout << "[ GPU ] " << (gpu.info.gpuName.empty() ? "(reading...)" : gpu.info.gpuName) << "\n";
     std::cout << " VRAM Total/Used: " << std::fixed << std::setprecision(2)
               << (gpu.info.totalVramMB / 1024.0) << " GB / "
               << (gpu.metrics.usedVramMB / 1024.0) << " GB\n";
@@ -44,7 +44,7 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     renderProgressBar(gpu.metrics.usagePercentage);
     std::cout << "\n\n";
 
-    std::cout << "[ Disk ] " << disk.info.driveLetter << "\n";
+    std::cout << "[ Disk ] " << (disk.info.driveLetter.empty() ? "(reading...)" : disk.info.driveLetter) << "\n";
     std::cout << " Total / Used  : " << std::fixed << std::setprecision(2)
               << disk.info.totalSpaceGB << " GB / "
               << disk.metrics.usedSpaceGB << " GB\n";
