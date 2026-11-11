@@ -1,9 +1,12 @@
-#include <thread>
 #include <chrono>
 #include <iostream>
+#include <thread>
 
-#include "ui/ConsoleDisplay.hpp"
 #include "core/SystemMonitor.hpp"
+#include "ui/ConsoleDisplay.hpp"
+
+// If you do NOT see BUILD_MARKER_2026_11_11 in the console at startup,
+// you are still running an old executable / old sources.
 
 void displayMenu(int currentInterval, bool loggingActive) {
     std::cout << "\n=========================================\n";
@@ -14,22 +17,20 @@ void displayMenu(int currentInterval, bool loggingActive) {
     std::cout << " 3. Toggle CSV Logging (Status: " << (loggingActive ? "ENABLED" : "DISABLED") << ")\n";
     std::cout << " 4. Exit Application\n";
     std::cout << "=========================================\n";
-    std::cout << " Select an option (1-4): ";
-    std::cout.flush();
+    std::cout << " Select an option (1-4): " << std::flush;
 }
 
 int main() {
-    std::cout << "System Performance Monitor starting...\n";
-    std::cout.flush();
+    std::cout << "BUILD_MARKER_2026_11_11\n";
+    std::cout << "System Performance Monitor starting...\n" << std::flush;
 
     SystemMonitor systemMonitor;
 
     bool running = true;
-
     while (running) {
         displayMenu(systemMonitor.getIntervalMs(), systemMonitor.isLoggingEnabled());
 
-        int choice;
+        int choice = 0;
         if (!(std::cin >> choice)) {
             std::cin.clear();
             std::cin.ignore(10000, '\n');
@@ -38,18 +39,20 @@ int main() {
 
         switch (choice) {
             case 1: {
-                // Ensure background worker is stopped so collectors are not used
-                // from two threads at once (PDH is not thread-safe).
                 systemMonitor.stop();
 
-                std::cout << "\nStarting Live Dashboard (main-thread sampling)...\n";
-                std::cout.flush();
+                std::cout << "\n[DBG] entered dashboard case\n" << std::flush;
+                std::cout << "Starting Live Dashboard (sync, no GPU)...\n" << std::flush;
 
+                int frame = 0;
                 while (true) {
-                    std::cout << "\n--- sampling ---\n";
-                    std::cout.flush();
+                    ++frame;
+                    std::cout << "\n[DBG] frame " << frame << " before sampleOnce\n" << std::flush;
 
                     SystemSnapshot snapshot = systemMonitor.sampleOnce();
+
+                    std::cout << "[DBG] frame " << frame << " after sampleOnce\n" << std::flush;
+
                     ConsoleDisplay::renderDashboard(
                         snapshot.cpuData,
                         snapshot.ramData,
@@ -64,9 +67,8 @@ int main() {
                 break;
             }
             case 2: {
-                int newInterval;
-                std::cout << "\nEnter new interval in milliseconds (min 100): ";
-                std::cout.flush();
+                int newInterval = 0;
+                std::cout << "\nEnter new interval in milliseconds (min 100): " << std::flush;
                 if (std::cin >> newInterval && newInterval >= 100) {
                     systemMonitor.setIntervalMs(newInterval);
                     std::cout << "Interval updated to " << newInterval << " ms.\n";
@@ -78,7 +80,7 @@ int main() {
                 break;
             }
             case 3: {
-                bool currentState = systemMonitor.isLoggingEnabled();
+                const bool currentState = systemMonitor.isLoggingEnabled();
                 systemMonitor.enableLogging(!currentState);
                 std::cout << "\nCSV Logging "
                           << (!currentState ? "ENABLED (system_metrics.csv)" : "DISABLED")

@@ -51,8 +51,8 @@ bool WindowsCpuCollector::initializePDH() {
         return false;
     }
 
-    // Wait before collecting data again (PDH necesită timp între măsurători)
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    // Short settle time for PDH first sample (avoid long startup hang)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     return true;
 }

@@ -3,19 +3,19 @@
 #include "collectors/MemoryCollectorFactory.hpp"
 #include "collectors/DiskCollectorFactory.hpp"
 
-#ifdef _WIN32
-#include "collectors/windows/WindowsGpuCollector.hpp"
-#endif
-
 #include <chrono>
+#include <iostream>
 
 SystemMonitor::SystemMonitor() {
+    std::cout << "[DBG] creating CPU collector...\n" << std::flush;
     cpuCollector = CpuCollectorFactory::createCpuCollector();
+    std::cout << "[DBG] creating RAM collector...\n" << std::flush;
     ramCollector = MemoryCollectorFactory::createMemoryCollector();
+    std::cout << "[DBG] creating Disk collector...\n" << std::flush;
     diskCollector = DiskCollectorFactory::createDiskCollector();
-#ifdef _WIN32
-    gpuCollector = std::make_unique<WindowsGpuCollector>();
-#endif
+    // GPU disabled for now — DXGI/PDH GPU counters can hang on some setups.
+    gpuCollector = nullptr;
+    std::cout << "[DBG] collectors ready (GPU disabled)\n" << std::flush;
 }
 
 SystemMonitor::~SystemMonitor() {
@@ -24,14 +24,12 @@ SystemMonitor::~SystemMonitor() {
 
 void SystemMonitor::start() {
     if (isRunning) return;
-
     isRunning = true;
     workerThread = std::thread(&SystemMonitor::collectionLoop, this);
 }
 
 void SystemMonitor::stop() {
     if (!isRunning) return;
-
     isRunning = false;
     if (workerThread.joinable()) {
         workerThread.join();
@@ -39,9 +37,16 @@ void SystemMonitor::stop() {
 }
 
 SystemSnapshot SystemMonitor::sampleOnce() {
+    std::cout << "[DBG] collect CPU...\n" << std::flush;
     CpuData cpu = cpuCollector ? cpuCollector->collectCpuData() : CpuData{};
+
+    std::cout << "[DBG] collect RAM...\n" << std::flush;
     RamData ram = ramCollector ? ramCollector->collectMemoryData() : RamData{};
-    GpuData gpu = gpuCollector ? gpuCollector->collectGpuData() : GpuData{};
+
+    std::cout << "[DBG] collect GPU (skipped)...\n" << std::flush;
+    GpuData gpu{}; // intentionally empty while GPU collector is disabled
+
+    std::cout << "[DBG] collect Disk...\n" << std::flush;
     DiskData disk = diskCollector ? diskCollector->collectDiskData() : DiskData{};
 
     SystemSnapshot snapshot{cpu, ram, gpu, disk};
@@ -55,6 +60,7 @@ SystemSnapshot SystemMonitor::sampleOnce() {
         csvLogger->logSnapshot(snapshot);
     }
 
+    std::cout << "[DBG] sampleOnce done\n" << std::flush;
     return snapshot;
 }
 
