@@ -5,9 +5,6 @@
 #include "core/SystemMonitor.hpp"
 #include "ui/ConsoleDisplay.hpp"
 
-// If you do NOT see BUILD_MARKER_2026_11_11 in the console at startup,
-// you are still running an old executable / old sources.
-
 void displayMenu(int currentInterval, bool loggingActive) {
     std::cout << "\n=========================================\n";
     std::cout << "     SYSTEM PERFORMANCE MONITOR MENU     \n";
@@ -21,9 +18,6 @@ void displayMenu(int currentInterval, bool loggingActive) {
 }
 
 int main() {
-    std::cout << "BUILD_MARKER_2026_11_11\n";
-    std::cout << "System Performance Monitor starting...\n" << std::flush;
-
     SystemMonitor systemMonitor;
 
     bool running = true;
@@ -39,26 +33,23 @@ int main() {
 
         switch (choice) {
             case 1: {
+                // Keep collectors on a single thread while the dashboard is live.
                 systemMonitor.stop();
 
-                std::cout << "\n[DBG] entered dashboard case\n" << std::flush;
-                std::cout << "Starting Live Dashboard (sync, no GPU)...\n" << std::flush;
+                std::cout << "\nStarting Live Dashboard...\n" << std::flush;
 
-                int frame = 0;
                 while (true) {
-                    ++frame;
-                    std::cout << "\n[DBG] frame " << frame << " before sampleOnce\n" << std::flush;
-
                     SystemSnapshot snapshot = systemMonitor.sampleOnce();
-
-                    std::cout << "[DBG] frame " << frame << " after sampleOnce\n" << std::flush;
-
                     ConsoleDisplay::renderDashboard(
                         snapshot.cpuData,
                         snapshot.ramData,
                         snapshot.gpuData,
                         snapshot.diskData
                     );
+
+                    if (systemMonitor.isLoggingEnabled()) {
+                        std::cout << " [ CSV Logging: ACTIVE -> system_metrics.csv ]\n" << std::flush;
+                    }
 
                     std::this_thread::sleep_for(
                         std::chrono::milliseconds(systemMonitor.getIntervalMs())

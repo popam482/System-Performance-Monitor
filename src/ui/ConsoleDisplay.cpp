@@ -36,8 +36,11 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     renderProgressBar(ram.metrics.usagePercentage);
     std::cout << "\n\n";
 
-    std::cout << "[ GPU ] " << (gpu.info.gpuName.empty() ? "(disabled in this build)" : gpu.info.gpuName) << "\n";
-    std::cout << " Usage         : ";
+    std::cout << "[ GPU ] " << (gpu.info.gpuName.empty() ? "(unknown)" : gpu.info.gpuName) << "\n";
+    std::cout << " VRAM Total/Used: " << std::fixed << std::setprecision(2)
+              << (gpu.info.totalVramMB / 1024.0) << " GB / "
+              << (gpu.metrics.usedVramMB / 1024.0) << " GB\n";
+    std::cout << " Engine Usage  : ";
     renderProgressBar(gpu.metrics.usagePercentage);
     std::cout << "\n\n";
 
