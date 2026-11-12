@@ -2,32 +2,38 @@
 #ifdef _WIN32
 
 #include "collectors/IGpuCollector.hpp"
-#include <pdh.h>
-#include <windows.h>
-#include <string>
+
 #include <dxgi.h>
+#include <dxgi1_4.h>
+#include <pdh.h>
+#include <string>
+#include <windows.h>
+
+#pragma comment(lib, "pdh.lib")
+#pragma comment(lib, "dxgi.lib")
 
 class WindowsGpuCollector : public IGpuCollector {
-private:
-    PDH_HQUERY gpuQuery = NULL;
-    PDH_HCOUNTER gpuUsageCounter = NULL;
-
-    std::string gpuName;
-    double totalVramMB = 0.0;
-    std::string driverVersion;
-
-    bool initializePDH();
-    void cleanupPDH();
-    void readGpuInfo();
-
-    double getGpuUsage();
-    double getUsedVram();
-
 public:
     WindowsGpuCollector();
     ~WindowsGpuCollector() override;
 
     GpuData collectGpuData() override;
 
+private:
+    bool initializePdh();
+    void cleanupPdh();
+    bool readGpuInfo();
+    double getGpuUsage();
+    double getUsedVramMb();
+
+    PDH_HQUERY gpuQuery = nullptr;
+    PDH_HCOUNTER gpuUsageCounter = nullptr;
+    bool pdhReady = false;
+
+    UINT selectedAdapterIndex = 0;
+    std::string gpuName = "Unknown GPU";
+    double totalVramMB = 0.0;
+    std::string driverVersion = "N/A";
 };
+
 #endif // _WIN32

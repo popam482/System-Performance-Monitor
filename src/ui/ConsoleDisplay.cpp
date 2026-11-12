@@ -18,7 +18,6 @@ void ConsoleDisplay::renderProgressBar(double percentage, int width) {
 }
 
 void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, const GpuData& gpu, const DiskData& disk) {
-    // Never clear the screen — clearing often looks like "nothing shows" in VS Code.
     std::cout << "\n=======================================================================\n";
     std::cout << "                   SYSTEM PERFORMANCE MONITOR (LIVE)                  \n";
     std::cout << "=======================================================================\n\n";

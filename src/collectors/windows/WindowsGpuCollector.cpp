@@ -1,123 +1,245 @@
 #ifdef _WIN32
 
 #include "collectors/windows/WindowsGpuCollector.hpp"
+
+#include <algorithm>
 #include <iostream>
 #include <vector>
-#include <dxgi.h>
-#include <dxgi1_4.h>
+
+namespace {
+std::string wideToUtf8(const wchar_t* wide) {
+    if (!wide) return {};
+    const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
+    if (sizeNeeded <= 1) return {};
+    std::string result(static_cast<size_t>(sizeNeeded - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, wide, -1, result.data(), sizeNeeded, nullptr, nullptr);
+    return result;
+}
+
+bool isSoftwareAdapter(const DXGI_ADAPTER_DESC1& desc) {
+    if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+        return true;
+    }
+    const std::wstring name(desc.Description);
+    return name.find(L"Microsoft Basic Render Driver") != std::wstring::npos;
+}
+} // namespace
 
 WindowsGpuCollector::WindowsGpuCollector() {
     readGpuInfo();
-    initializePDH();
+    initializePdh();
 }
 
 WindowsGpuCollector::~WindowsGpuCollector() {
-    cleanupPDH();
+    cleanupPdh();
 }
 
-void WindowsGpuCollector::readGpuInfo() {
-    IDXGIFactory* pFactory = NULL;
-    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
+bool WindowsGpuCollector::readGpuInfo() {
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) {
         gpuName = "Unknown GPU";
         totalVramMB = 0.0;
-        return;
+        return false;
     }
 
-    IDXGIAdapter* pAdapter = NULL;
-    // principal gpu adapter (index 0) - intel graphics
-    if (pFactory->EnumAdapters(0, &pAdapter) != DXGI_ERROR_NOT_FOUND) {
-        DXGI_ADAPTER_DESC desc;
-        pAdapter->GetDesc(&desc);
+    IDXGIAdapter1* adapter = nullptr;
+    UINT bestIndex = 0;
+    SIZE_T bestVram = 0;
+    bool foundHardware = false;
+    DXGI_ADAPTER_DESC1 bestDesc{};
 
-        std::wstring ws(desc.Description);
-        gpuName = std::string(ws.begin(), ws.end());
+    for (UINT index = 0; factory->EnumAdapters1(index, &adapter) != DXGI_ERROR_NOT_FOUND; ++index) {
+        DXGI_ADAPTER_DESC1 desc{};
+        if (FAILED(adapter->GetDesc1(&desc))) {
+            adapter->Release();
+            continue;
+        }
 
-        totalVramMB = static_cast<double>(desc.DedicatedVideoMemory) / (1024.0 * 1024.0);
+        if (!isSoftwareAdapter(desc)) {
+            if (!foundHardware || desc.DedicatedVideoMemory > bestVram) {
+                bestIndex = index;
+                bestVram = desc.DedicatedVideoMemory;
+                bestDesc = desc;
+                foundHardware = true;
+            }
+        }
 
-        pAdapter->Release();
+        adapter->Release();
     }
-    pFactory->Release();
 
-    driverVersion = "N/A"; 
-}
+    // Fallback to adapter 0 if only software adapters exist.
+    if (!foundHardware) {
+        if (SUCCEEDED(factory->EnumAdapters1(0, &adapter))) {
+            adapter->GetDesc1(&bestDesc);
+            bestIndex = 0;
+            bestVram = bestDesc.DedicatedVideoMemory;
+            adapter->Release();
+            foundHardware = true;
+        }
+    }
 
-bool WindowsGpuCollector::initializePDH() {
-    PDH_STATUS status = PdhOpenQuery(NULL, 0, &gpuQuery);
-    if (status != ERROR_SUCCESS) return false;
+    factory->Release();
 
-    status = PdhAddCounter(gpuQuery, TEXT("\\GPU Engine(*_engtype_3D)\\% Utilization"), 0, &gpuUsageCounter);
-    
-    PdhCollectQueryData(gpuQuery);
+    if (!foundHardware) {
+        gpuName = "Unknown GPU";
+        totalVramMB = 0.0;
+        return false;
+    }
+
+    selectedAdapterIndex = bestIndex;
+    gpuName = wideToUtf8(bestDesc.Description);
+    if (gpuName.empty()) {
+        gpuName = "Unknown GPU";
+    }
+    totalVramMB = static_cast<double>(bestVram) / (1024.0 * 1024.0);
+    driverVersion = "N/A";
     return true;
 }
 
-void WindowsGpuCollector::cleanupPDH() {
+bool WindowsGpuCollector::initializePdh() {
+    cleanupPdh();
+
+    PDH_STATUS status = PdhOpenQueryA(nullptr, 0, &gpuQuery);
+    if (status != ERROR_SUCCESS) {
+        gpuQuery = nullptr;
+        pdhReady = false;
+        return false;
+    }
+
+    // Prefer English counter API so localized Windows still resolves the path.
+    status = PdhAddEnglishCounterA(
+        gpuQuery,
+        "\\GPU Engine(*_engtype_3D)\\% Utilization",
+        0,
+        &gpuUsageCounter
+    );
+
+    // Fallback for toolchains / systems without PdhAddEnglishCounterA.
+    if (status != ERROR_SUCCESS) {
+        status = PdhAddCounterA(
+            gpuQuery,
+            "\\GPU Engine(*_engtype_3D)\\% Utilization",
+            0,
+            &gpuUsageCounter
+        );
+    }
+
+    if (status != ERROR_SUCCESS) {
+        cleanupPdh();
+        pdhReady = false;
+        return false;
+    }
+
+    // Prime the counter; first real sample needs a later Collect call.
+    status = PdhCollectQueryData(gpuQuery);
+    pdhReady = (status == ERROR_SUCCESS);
+    if (!pdhReady) {
+        cleanupPdh();
+    }
+    return pdhReady;
+}
+
+void WindowsGpuCollector::cleanupPdh() {
     if (gpuQuery) {
         PdhCloseQuery(gpuQuery);
-        gpuQuery = NULL;
     }
+    gpuQuery = nullptr;
+    gpuUsageCounter = nullptr;
+    pdhReady = false;
 }
 
 double WindowsGpuCollector::getGpuUsage() {
-    if (!gpuQuery || !gpuUsageCounter) return 0.0;
+    if (!pdhReady || !gpuQuery || !gpuUsageCounter) {
+        return 0.0;
+    }
 
     PDH_STATUS status = PdhCollectQueryData(gpuQuery);
-    if (status != ERROR_SUCCESS) return 0.0;
+    if (status != ERROR_SUCCESS) {
+        return 0.0;
+    }
 
     DWORD bufferSize = 0;
     DWORD itemCount = 0;
+    status = PdhGetFormattedCounterArrayA(
+        gpuUsageCounter,
+        PDH_FMT_DOUBLE,
+        &bufferSize,
+        &itemCount,
+        nullptr
+    );
 
-    PdhGetFormattedCounterArray(gpuUsageCounter, PDH_FMT_DOUBLE, &bufferSize, &itemCount, NULL);
-
-    if (bufferSize == 0) return 0.0;
-
-    std::vector<BYTE> buffer(bufferSize);
-    PDH_FMT_COUNTERVALUE_ITEM* pItems = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM*>(buffer.data());
-
-    status = PdhGetFormattedCounterArray(gpuUsageCounter, PDH_FMT_DOUBLE, &bufferSize, &itemCount, pItems);
-
-    double maxUsage = 0.0;
-    if (status == ERROR_SUCCESS) {
-        for (DWORD i = 0; i < itemCount; ++i) {
-            if (pItems[i].FmtValue.doubleValue > maxUsage) {
-                maxUsage = pItems[i].FmtValue.doubleValue;
-            }
-        }
+    // PDH_MORE_DATA is expected on the size probe.
+    if (status != PDH_MORE_DATA && status != ERROR_SUCCESS) {
+        return 0.0;
+    }
+    if (bufferSize == 0) {
+        return 0.0;
     }
 
+    std::vector<BYTE> buffer(bufferSize);
+    auto* items = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_A*>(buffer.data());
+
+    status = PdhGetFormattedCounterArrayA(
+        gpuUsageCounter,
+        PDH_FMT_DOUBLE,
+        &bufferSize,
+        &itemCount,
+        items
+    );
+
+    if (status != ERROR_SUCCESS) {
+        return 0.0;
+    }
+
+    double maxUsage = 0.0;
+    for (DWORD i = 0; i < itemCount; ++i) {
+        if (items[i].FmtValue.CStatus != ERROR_SUCCESS) {
+            continue;
+        }
+        maxUsage = (std::max)(maxUsage, items[i].FmtValue.doubleValue);
+    }
+
+    if (maxUsage < 0.0) maxUsage = 0.0;
+    if (maxUsage > 100.0) maxUsage = 100.0;
     return maxUsage;
 }
 
-double WindowsGpuCollector::getUsedVram() {
-    IDXGIFactory4* pFactory = NULL;
-    double usedMB = 0.0;
-
-    if (SUCCEEDED(CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&pFactory))) {
-        IDXGIAdapter3* pAdapter = NULL;
-        if (pFactory->EnumAdapters1(0, reinterpret_cast<IDXGIAdapter1**>(&pAdapter)) != DXGI_ERROR_NOT_FOUND) {
-            DXGI_QUERY_VIDEO_MEMORY_INFO info;
-            if (SUCCEEDED(pAdapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
-                usedMB = static_cast<double>(info.CurrentUsage) / (1024.0 * 1024.0);
-            }
-            pAdapter->Release();
-        }
-        pFactory->Release();
+double WindowsGpuCollector::getUsedVramMb() {
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) {
+        return 0.0;
     }
-    return usedMB;
+
+    IDXGIAdapter1* adapter1 = nullptr;
+    if (factory->EnumAdapters1(selectedAdapterIndex, &adapter1) == DXGI_ERROR_NOT_FOUND) {
+        factory->Release();
+        return 0.0;
+    }
+
+    double usedMb = 0.0;
+    IDXGIAdapter3* adapter3 = nullptr;
+    if (SUCCEEDED(adapter1->QueryInterface(__uuidof(IDXGIAdapter3), reinterpret_cast<void**>(&adapter3)))) {
+        DXGI_QUERY_VIDEO_MEMORY_INFO info{};
+        if (SUCCEEDED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
+            usedMb = static_cast<double>(info.CurrentUsage) / (1024.0 * 1024.0);
+        }
+        adapter3->Release();
+    }
+
+    adapter1->Release();
+    factory->Release();
+    return usedMb;
 }
 
 GpuData WindowsGpuCollector::collectGpuData() {
     GpuData data;
-
-
     data.info.gpuName = gpuName;
     data.info.totalVramMB = totalVramMB;
     data.info.driverVersion = driverVersion;
 
     data.metrics.usagePercentage = getGpuUsage();
-    data.metrics.usedVramMB = getUsedVram();
-    data.metrics.temperatureC = 0.0;
-
+    data.metrics.usedVramMB = getUsedVramMb();
+    data.metrics.temperatureC = 0.0; // needs vendor APIs (NVAPI/ADL); left for later
     return data;
 }
 
