@@ -38,6 +38,7 @@ endif()
 
 add_executable(System_Performance_Monitor 
     src/main.cpp
+    src/ui/ConsoleInput.cpp
     src/ui/ConsoleDisplay.cpp
     src/collectors/CpuCollectorFactory.cpp
     src/collectors/MemoryCollectorFactory.cpp

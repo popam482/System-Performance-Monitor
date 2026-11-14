@@ -20,7 +20,6 @@ struct ProcessorPowerInformation {
 
 std::optional<double> readBaseFrequency() {
     // Intel CPUID.16H reports specification data, not a live clock.
-    // Verify vendor, leaf support and the field before using it.
 #if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
     int registers[4]{};
     __cpuid(registers, 0);

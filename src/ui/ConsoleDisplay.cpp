@@ -60,5 +60,5 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     show(disk.info.totalSpaceGB); std::cout << " GiB / "; show(disk.metrics.usedSpaceGB);
     std::cout << " GiB\n Usage         : "; showUsage(disk.metrics.usagePercentage);
     std::cout << "\n\n=======================================================================\n"
-              << " Ctrl+C to stop\n" << std::flush;
+              << " Q + Enter: menu | X + Enter: exit | Ctrl+C: exit\n" << std::flush;
 }
