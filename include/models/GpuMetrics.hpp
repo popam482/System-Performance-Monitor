@@ -1,7 +1,8 @@
 #pragma once
+#include <optional>
 
 struct GpuMetrics {
-    double usagePercentage;
-    double usedVramMB;
-    double temperatureC;
+    std::optional<double> usagePercentage;
+    std::optional<double> usedVramMB;
+    std::optional<double> temperatureC;
 };

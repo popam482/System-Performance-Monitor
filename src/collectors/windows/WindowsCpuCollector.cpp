@@ -1,147 +1,136 @@
 #ifdef _WIN32
-
-#include "../../../include/collectors/windows/WindowsCpuCollector.hpp"
-#include <iostream>
-#include <thread>
+#include "collectors/windows/WindowsCpuCollector.hpp"
 #include <windows.h>
-#include <chrono>
+#include <powrprof.h>
+#include <pdhmsg.h>
+#include <algorithm>
+#include <iostream>
+#include <vector>
+#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
+#include <intrin.h>
+#elif defined(__i386__) || defined(__x86_64__)
+#include <cpuid.h>
+#endif
+
+namespace {
+// Layout documented by CallNtPowerInformation; absent from some SDK headers.
+struct ProcessorPowerInformation {
+    ULONG number, maxMhz, currentMhz, mhzLimit, maxIdleState, currentIdleState;
+};
+
+std::optional<double> readBaseFrequency() {
+    // Intel CPUID.16H reports specification data, not a live clock.
+    // Verify vendor, leaf support and the field before using it.
+#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
+    int registers[4]{};
+    __cpuid(registers, 0);
+    if (registers[0] < 0x16 || registers[1] != 0x756e6547 ||
+        registers[3] != 0x49656e69 || registers[2] != 0x6c65746e) return std::nullopt;
+    __cpuid(registers, 0x16);
+    const unsigned int mhz = static_cast<unsigned int>(registers[0]) & 0xFFFF;
+    if (mhz > 0) return mhz / 1000.0;
+#elif defined(__i386__) || defined(__x86_64__)
+    unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+    if (!__get_cpuid(0, &eax, &ebx, &ecx, &edx) || eax < 0x16 ||
+        ebx != 0x756e6547 || edx != 0x49656e69 || ecx != 0x6c65746e) return std::nullopt;
+    if (__get_cpuid(0x16, &eax, &ebx, &ecx, &edx) && (eax & 0xFFFF) > 0)
+        return (eax & 0xFFFF) / 1000.0;
+#endif
+    return std::nullopt;
+}
+}
 
 WindowsCpuCollector::WindowsCpuCollector() {
-    if(initializePDH()) {
-        readCpuInfo();
-    } else {
-        std::cerr << "Failed to initialize PDH for CPU metrics collection." << std::endl;
-    }
+    readCpuInfo(); // Hardware identity is independent of PDH availability.
+    if (!initializePDH()) std::cerr << "CPU usage counter unavailable.\n";
 }
-
-WindowsCpuCollector::~WindowsCpuCollector() {
-    cleanupPDH();
-}
+WindowsCpuCollector::~WindowsCpuCollector() { cleanupPDH(); }
 
 bool WindowsCpuCollector::initializePDH() {
-    PDH_STATUS status = PdhOpenQuery(NULL, 0, &cpuQuery);
-    if (status != ERROR_SUCCESS) {
-        std::cerr << "PdhOpenQuery failed with status: " << status << std::endl;
+    if (PdhOpenQueryA(nullptr, 0, &cpuQuery) != ERROR_SUCCESS) return false;
+    if (PdhAddEnglishCounterA(cpuQuery, "\\Processor(_Total)\\% Processor Time",
+                             0, &cpuTotalHandle) != ERROR_SUCCESS ||
+        PdhCollectQueryData(cpuQuery) != ERROR_SUCCESS) {
+        cleanupPDH();
         return false;
     }
-
-    // Add total CPU usage counter
-    status = PdhAddCounter(cpuQuery, "\\Processor(_Total)\\% Processor Time", 0, &cpuTotalHandle);
-    if (status != ERROR_SUCCESS) {
-        std::cerr << "PdhAddCounter for total CPU usage failed with status: " << status << std::endl;
-        PdhCloseQuery(cpuQuery);
-        return false;
-    }
-
-    // Add per-core CPU usage counters
-    logicalThreads = std::thread::hardware_concurrency();
-    for (unsigned int i = 0; i < logicalThreads; i++) {
-        std::string counterPath = "\\Processor(" + std::to_string(i) + ")\\% Processor Time";
-        PDH_HCOUNTER handle;
-        status = PdhAddCounter(cpuQuery, counterPath.c_str(), 0, &handle);
-        if (status == ERROR_SUCCESS) {
-            perCoreHandles.push_back(handle);
-        }
-    }
-
-    // PDH requires an initial data collection to start measuring
-    status = PdhCollectQueryData(cpuQuery);
-    if (status != ERROR_SUCCESS) {
-        std::cerr << "Failed to collect initial query data: " << status << std::endl;
-        return false;
-    }
-
-    // Short settle time for PDH first sample (avoid long startup hang)
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
     return true;
 }
-
 void WindowsCpuCollector::cleanupPDH() {
-    if (cpuQuery != NULL) {
-        PdhCloseQuery(cpuQuery);
-        cpuQuery = NULL;
-    }
+    if (cpuQuery) PdhCloseQuery(cpuQuery);
+    cpuQuery = nullptr;
+    cpuTotalHandle = nullptr;
 }
-
 CpuData WindowsCpuCollector::collectCpuData() {
-    CpuData data;
-
-    PDH_STATUS status = PdhCollectQueryData(cpuQuery);
-    if (status != ERROR_SUCCESS) {
-        std::cerr << "Failed to collect query data: " << status << std::endl;
-        return data;
-    }
-
-    // Static data
+    CpuData data{};
     data.info.cpuName = cpuName;
     data.info.physicalCores = physicalCores;
     data.info.logicalThreads = logicalThreads;
     data.info.baseFrequencyGHz = baseFrequency;
-    data.info.maxFrequencyGHz = maxFrequency;
-
-    // Dynamic data
-    data.metrics.usage = getCpuUsage();
-    data.metrics.currentFrequency = getCurrentFrequency();
-
+    // Registry ~MHz is not a reliable nominal/base-frequency source.
+    readFrequencies(data);
+    if (cpuQuery && PdhCollectQueryData(cpuQuery) == ERROR_SUCCESS)
+        data.metrics.usage = getCpuUsage();
     return data;
 }
-
-double WindowsCpuCollector::getCpuUsage() {
-    PDH_FMT_COUNTERVALUE counterValue;
-    PDH_STATUS status = PdhGetFormattedCounterValue(cpuTotalHandle, PDH_FMT_DOUBLE, NULL, &counterValue);
-    
-    if (status == ERROR_SUCCESS) {
-        return counterValue.doubleValue; 
+std::optional<double> WindowsCpuCollector::getCpuUsage() {
+    PDH_FMT_COUNTERVALUE value{};
+    if (PdhGetFormattedCounterValue(cpuTotalHandle, PDH_FMT_DOUBLE, nullptr, &value)
+            == ERROR_SUCCESS &&
+        (value.CStatus == PDH_CSTATUS_VALID_DATA || value.CStatus == PDH_CSTATUS_NEW_DATA))
+        return value.doubleValue;
+    return std::nullopt;
+}
+void WindowsCpuCollector::readFrequencies(CpuData& data) {
+    // The legacy power API has no group selector. Avoid presenting a partial
+    // processor group as a system-wide measurement on large machines.
+    if (!logicalThreads || GetActiveProcessorGroupCount() != 1) return;
+    std::vector<ProcessorPowerInformation> power(*logicalThreads);
+    if (CallNtPowerInformation(ProcessorInformation, nullptr, 0, power.data(),
+            static_cast<ULONG>(power.size() * sizeof(ProcessorPowerInformation))) != 0) return;
+    ULONG maxMhz = 0;
+    double currentMhz = 0.0;
+    bool allCurrentValid = true, allMaxValid = true;
+    for (const auto& processor : power) {
+        allMaxValid = allMaxValid && processor.maxMhz > 0;
+        allCurrentValid = allCurrentValid && processor.currentMhz > 0;
+        maxMhz = (std::max)(maxMhz, processor.maxMhz);
+        currentMhz += processor.currentMhz;
     }
-    
-    return 0.0;
+    if (allMaxValid) data.info.maxFrequencyGHz = maxMhz / 1000.0;
+    if (allCurrentValid) data.metrics.currentFrequency = currentMhz / power.size() / 1000.0;
 }
-
-double WindowsCpuCollector::getCurrentFrequency() {
-   
-    return maxFrequency;
-}
-
 void WindowsCpuCollector::readCpuInfo() {
-    SYSTEM_INFO sysInfo;
-    GetSystemInfo(&sysInfo);
-    
-    logicalThreads = sysInfo.dwNumberOfProcessors;
-    physicalCores = (logicalThreads > 1) ? logicalThreads / 2 : 1;
-
-    HKEY hKey;
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, 
-        "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        
-        char processorName[256] = {0};
-        DWORD size = sizeof(processorName);
-        
-        if (RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL, 
-            (LPBYTE)processorName, &size) == ERROR_SUCCESS) {
-            cpuName = processorName;
+    baseFrequency = readBaseFrequency();
+    const DWORD active = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    if (active != 0) logicalThreads = active;
+    DWORD bytes = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bytes);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && bytes > 0) {
+        std::vector<BYTE> buffer(bytes);
+        if (GetLogicalProcessorInformationEx(RelationProcessorCore,
+                reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data()), &bytes)) {
+            unsigned int cores = 0;
+            size_t offset = 0;
+            while (offset + sizeof(DWORD) * 2 <= bytes) {
+                const auto* entry = reinterpret_cast<const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(
+                    buffer.data() + offset);
+                if (entry->Size < sizeof(DWORD) * 2 || entry->Size > bytes - offset) break;
+                if (entry->Relationship == RelationProcessorCore) ++cores;
+                offset += entry->Size;
+            }
+            if (offset == bytes && cores > 0) physicalCores = cores;
         }
-
-
-        DWORD mhz = 0;
-        size = sizeof(mhz);
-        if (RegQueryValueExA(hKey, "~MHz", NULL, NULL, 
-            (LPBYTE)&mhz, &size) == ERROR_SUCCESS) {
-            baseFrequency = mhz / 1000.0; 
-        }
-
-        RegCloseKey(hKey);
     }
-
-    if (cpuName.empty()) {
-        cpuName = "Unknown Processor";
+    HKEY key = nullptr;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+            "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        char name[256]{};
+        DWORD size = sizeof(name) - 1, type = 0;
+        if (RegQueryValueExA(key, "ProcessorNameString", nullptr, &type,
+                reinterpret_cast<LPBYTE>(name), &size) == ERROR_SUCCESS && type == REG_SZ)
+            cpuName = name;
+        RegCloseKey(key);
     }
-    if (baseFrequency <= 0.0) {
-        baseFrequency = 2.0;
-    }
-
-    maxFrequency = baseFrequency * 1.5; 
 }
-
-#endif // _WIN32
+#endif

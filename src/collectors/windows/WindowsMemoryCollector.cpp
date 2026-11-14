@@ -1,51 +1,32 @@
 #ifdef _WIN32
-
 #include "collectors/windows/WindowsMemoryCollector.hpp"
-#include <iostream>
+#include "collectors/windows/SmbiosMemory.hpp"
+#include <cstring>
+#include <vector>
 
-WindowsMemoryCollector::WindowsMemoryCollector() {
-    readMemoryInfo();
-}
-
+WindowsMemoryCollector::WindowsMemoryCollector() { readMemoryInfo(); }
 void WindowsMemoryCollector::readMemoryInfo() {
-    MEMORYSTATUSEX memStatus;
-    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
-    
-    if (!GlobalMemoryStatusEx(&memStatus)) {
-        std::cerr << "Failed to retrieve system memory status." << std::endl;
-        totalMemoryMB = 0;
-        ramType = "Unknown";
-        return;
-    }
-    
-    // Convert bytes to MB
-    totalMemoryMB = memStatus.ullTotalPhys / (1024 * 1024);
-    ramType = "DDR4/DDR5"; 
+    constexpr DWORD rsmb = 0x52534D42; // Windows 'RSMB' firmware provider.
+    const UINT size = GetSystemFirmwareTable(rsmb, 0, nullptr, 0);
+    if (size < 8) return;
+    std::vector<std::uint8_t> raw(size);
+    if (GetSystemFirmwareTable(rsmb, 0, raw.data(), size) != size) return;
+    DWORD tableSize = 0;
+    std::memcpy(&tableSize, raw.data() + 4, sizeof(tableSize));
+    if (tableSize > raw.size() - 8) return;
+    ramType = parseSmbiosMemoryType(raw.data() + 8, tableSize);
 }
-
 RamData WindowsMemoryCollector::collectMemoryData() {
-    RamData data;
-    
-    MEMORYSTATUSEX memStatus;
-    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
-    
-    if (!GlobalMemoryStatusEx(&memStatus)) {
-        std::cerr << "Failed to retrieve memory metrics." << std::endl;
-        return data;
-    }
-    
-    // Static info
-    data.info.totalMemoryBytes = memStatus.ullTotalPhys;
+    RamData data{};
     data.info.ramType = ramType;
-    
-    // Dynamic metrics
-    unsigned long long usedMemoryBytes = memStatus.ullTotalPhys - memStatus.ullAvailPhys;
-    
-    data.metrics.usedMemoryMB = usedMemoryBytes / (1024 * 1024);
-    data.metrics.availableMemoryMB = memStatus.ullAvailPhys / (1024 * 1024);
-    data.metrics.usagePercentage = (static_cast<double>(usedMemoryBytes) / memStatus.ullTotalPhys) * 100.0;
-    
+    MEMORYSTATUSEX status{};
+    status.dwLength = sizeof(status);
+    if (!GlobalMemoryStatusEx(&status) || status.ullTotalPhys == 0) return data;
+    data.info.totalMemoryBytes = status.ullTotalPhys;
+    const auto used = status.ullTotalPhys - status.ullAvailPhys;
+    data.metrics.usedMemoryMB = used / (1024 * 1024);
+    data.metrics.availableMemoryMB = status.ullAvailPhys / (1024 * 1024);
+    data.metrics.usagePercentage = static_cast<double>(used) / status.ullTotalPhys * 100.0;
     return data;
 }
-
-#endif // _WIN32
+#endif

@@ -1,7 +1,8 @@
 #pragma once
+#include <optional>
 
 struct RamMetrics{
-    unsigned long usedMemoryMB;
-    unsigned long availableMemoryMB;
-    double usagePercentage;
+    std::optional<unsigned long long> usedMemoryMB;
+    std::optional<unsigned long long> availableMemoryMB;
+    std::optional<double> usagePercentage;
 };

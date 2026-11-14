@@ -1,11 +1,14 @@
 #pragma once
 #include <string>
+#include <optional>
 
 struct CpuInfo{
     std::string cpuName;
-    unsigned int physicalCores;
-    unsigned int logicalThreads;
+    std::optional<unsigned int> physicalCores;
+    std::optional<unsigned int> logicalThreads;
 
-    double baseFrequencyGHz;
-    double maxFrequencyGHz;
+    // Empty when the platform cannot report a nominal/base frequency.
+    std::optional<double> baseFrequencyGHz;
+    // Maximum specified frequency reported by the OS, not a turbo estimate.
+    std::optional<double> maxFrequencyGHz;
 };

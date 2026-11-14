@@ -4,6 +4,14 @@
 #include <sstream>
 #include <iostream>
 
+namespace {
+template <typename T>
+void writeMetric(std::ostream& stream, const std::optional<T>& value, double divisor = 1.0) {
+    // Empty CSV fields represent unavailable metrics; a measured zero stays 0.
+    if (value) stream << static_cast<double>(*value) / divisor;
+}
+}
+
 CsvExport::CsvExport(const std::string& filename) {
     openFile(filename);
 }
@@ -67,16 +75,15 @@ void CsvExport::logSnapshot(const SystemSnapshot& snapshot) {
     std::lock_guard<std::mutex> lock(fileMutex);
     if (!fileStream.is_open()) return;
 
-    fileStream << getCurrentTimestamp() << ","
-               << std::fixed << std::setprecision(2)
-               << snapshot.cpuData.metrics.usage << ","
-               << snapshot.ramData.metrics.usedMemoryMB << ","
-               << snapshot.ramData.info.totalMemoryBytes << ","
-               << snapshot.ramData.metrics.usagePercentage << ","
-               << snapshot.gpuData.metrics.usagePercentage << ","
-               << snapshot.gpuData.metrics.usedVramMB << ","
-               << snapshot.diskData.metrics.usedSpaceGB << ","
-               << snapshot.diskData.info.totalSpaceGB << "\n";
+    fileStream << getCurrentTimestamp() << "," << std::fixed << std::setprecision(2);
+    writeMetric(fileStream, snapshot.cpuData.metrics.usage); fileStream << ',';
+    writeMetric(fileStream, snapshot.ramData.metrics.usedMemoryMB); fileStream << ',';
+    writeMetric(fileStream, snapshot.ramData.info.totalMemoryBytes, 1024.0 * 1024.0); fileStream << ',';
+    writeMetric(fileStream, snapshot.ramData.metrics.usagePercentage); fileStream << ',';
+    writeMetric(fileStream, snapshot.gpuData.metrics.usagePercentage); fileStream << ',';
+    writeMetric(fileStream, snapshot.gpuData.metrics.usedVramMB); fileStream << ',';
+    writeMetric(fileStream, snapshot.diskData.metrics.usedSpaceGB); fileStream << ',';
+    writeMetric(fileStream, snapshot.diskData.info.totalSpaceGB); fileStream << '\n';
 
     fileStream.flush(); 
 }

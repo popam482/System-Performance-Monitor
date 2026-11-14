@@ -1,7 +1,8 @@
 #pragma once
 #include <string>
+#include <optional>
 
 struct DiskInfo {
     std::string driveLetter; 
-    double totalSpaceGB;
+    std::optional<double> totalSpaceGB;
 };

@@ -1,7 +1,8 @@
 #pragma once
 #include <string>
+#include <optional>
 
 struct RamInfo{
-    unsigned long long totalMemoryBytes;
-    std::string ramType;
+    std::optional<unsigned long long> totalMemoryBytes;
+    std::optional<std::string> ramType;
 };

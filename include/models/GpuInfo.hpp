@@ -1,8 +1,9 @@
 #pragma once
 #include <string>
+#include <optional>
 
 struct GpuInfo{
     std::string gpuName;
-    double totalVramMB;
-    std::string driverVersion;
+    std::optional<double> totalVramMB;
+    std::optional<std::string> driverVersion;
 };

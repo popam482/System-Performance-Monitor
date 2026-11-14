@@ -16,8 +16,7 @@ public:
 private:
     void readMemoryInfo();
     
-    unsigned long totalMemoryMB = 0;
-    std::string ramType = "Unknown";
+    std::optional<std::string> ramType;
 };
 
 #endif // _WIN32

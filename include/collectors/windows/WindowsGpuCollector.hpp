@@ -23,17 +23,18 @@ private:
     bool initializePdh();
     void cleanupPdh();
     bool readGpuInfo();
-    double getGpuUsage();
-    double getUsedVramMb();
+    std::optional<double> getGpuUsage();
+    std::optional<double> getUsedVramMb();
 
     PDH_HQUERY gpuQuery = nullptr;
     PDH_HCOUNTER gpuUsageCounter = nullptr;
+    PDH_HCOUNTER gpuMemoryCounter = nullptr;
     bool pdhReady = false;
 
-    UINT selectedAdapterIndex = 0;
-    std::string gpuName = "Unknown GPU";
-    double totalVramMB = 0.0;
-    std::string driverVersion = "N/A";
+    std::string adapterInstance;
+    std::string gpuName;
+    std::optional<double> totalVramMB;
+    std::optional<std::string> driverVersion;
 };
 
 #endif // _WIN32

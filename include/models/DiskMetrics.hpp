@@ -1,7 +1,8 @@
 #pragma once
+#include <optional>
 
 struct DiskMetrics {
-    double freeSpaceGB;
-    double usedSpaceGB;
-    double usagePercentage;
+    std::optional<double> freeSpaceGB;
+    std::optional<double> usedSpaceGB;
+    std::optional<double> usagePercentage;
 };

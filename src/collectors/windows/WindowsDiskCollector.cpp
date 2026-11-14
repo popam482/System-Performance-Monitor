@@ -6,12 +6,13 @@
 WindowsDiskCollector::WindowsDiskCollector(std::string drive) : drivePath(drive) {}
 
 DiskData WindowsDiskCollector::collectDiskData() {
-    DiskData data;
+    DiskData data{};
     data.info.driveLetter = drivePath;
 
     ULARGE_INTEGER freeBytesAvailable, totalBytes, totalFreeBytes;
 
-    if (GetDiskFreeSpaceExA(drivePath.c_str(), &freeBytesAvailable, &totalBytes, &totalFreeBytes)) {
+    if (GetDiskFreeSpaceExA(drivePath.c_str(), &freeBytesAvailable, &totalBytes, &totalFreeBytes)
+            && totalBytes.QuadPart > 0) {
         double totalGB = static_cast<double>(totalBytes.QuadPart) / (1024.0 * 1024.0 * 1024.0);
         double freeGB = static_cast<double>(totalFreeBytes.QuadPart) / (1024.0 * 1024.0 * 1024.0);
         double usedGB = totalGB - freeGB;

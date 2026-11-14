@@ -19,19 +19,17 @@ public:
 private:
     PDH_HQUERY cpuQuery = NULL;
     PDH_HCOUNTER cpuTotalHandle = NULL;
-    std::vector<PDH_HCOUNTER> perCoreHandles;
     
     bool initializePDH();
     void cleanupPDH();
-    double getCpuUsage();
-    double getCurrentFrequency();
+    std::optional<double> getCpuUsage();
+    void readFrequencies(CpuData& data);
     void readCpuInfo();
     
     std::string cpuName;
-    unsigned int physicalCores = 0;
-    unsigned int logicalThreads = 0;
-    double baseFrequency = 0.0;
-    double maxFrequency = 0.0;
+    std::optional<unsigned int> physicalCores;
+    std::optional<unsigned int> logicalThreads;
+    std::optional<double> baseFrequency;
 };
 
 #endif // _WIN32

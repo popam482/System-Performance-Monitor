@@ -19,6 +19,23 @@ elseif(APPLE)
     )
 endif()
 
+include(CTest)
+if(BUILD_TESTING AND WIN32)
+    add_executable(MetricsTests
+        tests/MetricsTests.cpp
+        src/collectors/windows/SmbiosMemory.cpp
+        src/collectors/windows/WindowsCpuCollector.cpp
+        src/collectors/windows/WindowsMemoryCollector.cpp
+        src/collectors/windows/WindowsGpuCollector.cpp
+        src/collectors/windows/WindowsDiskCollector.cpp
+        src/ui/ConsoleDisplay.cpp
+        src/storage/CsvExport.cpp
+    )
+    target_include_directories(MetricsTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(MetricsTests PRIVATE pdh dxgi powrprof)
+    add_test(NAME MetricsTests COMMAND MetricsTests)
+endif()
+
 add_executable(System_Performance_Monitor 
     src/main.cpp
     src/ui/ConsoleDisplay.cpp
@@ -29,6 +46,7 @@ add_executable(System_Performance_Monitor
     src/storage/CsvExport.cpp
     src/collectors/windows/WindowsCpuCollector.cpp 
     src/collectors/windows/WindowsMemoryCollector.cpp
+    src/collectors/windows/SmbiosMemory.cpp
     src/collectors/windows/WindowsGpuCollector.cpp
     src/collectors/DiskCollectorFactory.cpp
     ${PLATFORM_SOURCES}
@@ -44,5 +62,5 @@ target_include_directories(System_Performance_Monitor PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi)
+    target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi powrprof)
 endif()
