@@ -2,10 +2,7 @@
 #include "collectors/CpuCollectorFactory.hpp"
 #include "collectors/DiskCollectorFactory.hpp"
 #include "collectors/MemoryCollectorFactory.hpp"
-
-#ifdef _WIN32
-#include "collectors/windows/WindowsGpuCollector.hpp"
-#endif
+#include "collectors/GpuCollectorFactory.hpp"
 
 #include <chrono>
 
@@ -13,11 +10,7 @@ SystemMonitor::SystemMonitor() {
     cpuCollector = CpuCollectorFactory::createCpuCollector();
     ramCollector = MemoryCollectorFactory::createMemoryCollector();
     diskCollector = DiskCollectorFactory::createDiskCollector();
-#ifdef _WIN32
-    gpuCollector = std::make_unique<WindowsGpuCollector>();
-#else
-    gpuCollector = nullptr;
-#endif
+    gpuCollector = GpuCollectorFactory::createGpuCollector();
 }
 
 SystemMonitor::~SystemMonitor() {

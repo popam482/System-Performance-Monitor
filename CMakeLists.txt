@@ -1,67 +1,54 @@
 cmake_minimum_required(VERSION 3.10)
-project(System_Performance_Monitor)
+project(System_Performance_Monitor LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+find_package(Threads REQUIRED)
 
 if(WIN32)
     set(PLATFORM_SOURCES
         src/collectors/windows/WindowsCpuCollector.cpp
-        src/collectors/windows/WindowsDiskCollector.cpp
-    )
-elseif(UNIX AND NOT APPLE)
-    set(PLATFORM_SOURCES
-        src/collectors/linux/LinuxCpuCollector.cpp
-    )
-elseif(APPLE)
-    set(PLATFORM_SOURCES
-        src/collectors/mac/MacCpuCollector.cpp
-    )
-endif()
-
-include(CTest)
-if(BUILD_TESTING AND WIN32)
-    add_executable(MetricsTests
-        tests/MetricsTests.cpp
-        src/collectors/windows/SmbiosMemory.cpp
-        src/collectors/windows/WindowsCpuCollector.cpp
         src/collectors/windows/WindowsMemoryCollector.cpp
+        src/collectors/windows/SmbiosMemory.cpp
         src/collectors/windows/WindowsGpuCollector.cpp
         src/collectors/windows/WindowsDiskCollector.cpp
-        src/ui/ConsoleDisplay.cpp
-        src/storage/CsvExport.cpp
     )
-    target_include_directories(MetricsTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    target_link_libraries(MetricsTests PRIVATE pdh dxgi powrprof)
-    add_test(NAME MetricsTests COMMAND MetricsTests)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(PLATFORM_SOURCES src/collectors/linux/LinuxCpuCollector.cpp)
+else()
+    message(FATAL_ERROR "Supported platforms are Windows and Linux.")
 endif()
 
-add_executable(System_Performance_Monitor 
+add_executable(System_Performance_Monitor
     src/main.cpp
     src/ui/ConsoleInput.cpp
     src/ui/ConsoleDisplay.cpp
     src/collectors/CpuCollectorFactory.cpp
     src/collectors/MemoryCollectorFactory.cpp
     src/collectors/GpuCollectorFactory.cpp
+    src/collectors/DiskCollectorFactory.cpp
     src/core/SystemMonitor.cpp
     src/storage/CsvExport.cpp
-    src/collectors/windows/WindowsCpuCollector.cpp 
-    src/collectors/windows/WindowsMemoryCollector.cpp
-    src/collectors/windows/SmbiosMemory.cpp
-    src/collectors/windows/WindowsGpuCollector.cpp
-    src/collectors/DiskCollectorFactory.cpp
     ${PLATFORM_SOURCES}
 )
-
 
 target_include_directories(System_Performance_Monitor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/collectors
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mock
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/models
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/storage
 )
-
+target_link_libraries(System_Performance_Monitor PRIVATE Threads::Threads)
 if(WIN32)
     target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi powrprof)
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    # File-backed Linux readers are also tested on Windows using proc/sys fixtures.
+    add_executable(LinuxCpuCollectorTests
+        tests/LinuxCpuCollectorTests.cpp
+        src/collectors/linux/LinuxCpuCollector.cpp
+    )
+    target_include_directories(LinuxCpuCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    add_test(NAME LinuxCpuCollectorTests COMMAND LinuxCpuCollectorTests)
 endif()
