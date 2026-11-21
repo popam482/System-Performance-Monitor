@@ -15,7 +15,11 @@ if(WIN32)
         src/collectors/windows/WindowsDiskCollector.cpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(PLATFORM_SOURCES src/collectors/linux/LinuxCpuCollector.cpp)
+    set(PLATFORM_SOURCES
+        src/collectors/linux/LinuxCpuCollector.cpp
+        src/collectors/linux/LinuxMemoryCollector.cpp
+        src/collectors/linux/LinuxDiskCollector.cpp
+    )
 else()
     message(FATAL_ERROR "Supported platforms are Windows and Linux.")
 endif()
@@ -45,10 +49,28 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
     # File-backed Linux readers are also tested on Windows using proc/sys fixtures.
-    add_executable(LinuxCpuCollectorTests
-        tests/LinuxCpuCollectorTests.cpp
-        src/collectors/linux/LinuxCpuCollector.cpp
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/LinuxCpuCollectorTests.cpp")
+        add_executable(LinuxCpuCollectorTests
+            tests/LinuxCpuCollectorTests.cpp
+            src/collectors/linux/LinuxCpuCollector.cpp
+        )
+        target_include_directories(LinuxCpuCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        add_test(NAME LinuxCpuCollectorTests COMMAND LinuxCpuCollectorTests)
+    endif()
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/LinuxMemoryCollectorTests.cpp")
+        add_executable(LinuxMemoryCollectorTests
+            tests/LinuxMemoryCollectorTests.cpp
+            src/collectors/linux/LinuxMemoryCollector.cpp
+        )
+        target_include_directories(LinuxMemoryCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        add_test(NAME LinuxMemoryCollectorTests COMMAND LinuxMemoryCollectorTests)
+    endif()
+
+    add_executable(LinuxDiskCollectorTests
+        tests/LinuxDiskCollectorTests.cpp
+        src/collectors/linux/LinuxDiskCollector.cpp
     )
-    target_include_directories(LinuxCpuCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    add_test(NAME LinuxCpuCollectorTests COMMAND LinuxCpuCollectorTests)
+    target_include_directories(LinuxDiskCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    add_test(NAME LinuxDiskCollectorTests COMMAND LinuxDiskCollectorTests)
 endif()
