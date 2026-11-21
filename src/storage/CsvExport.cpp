@@ -13,8 +13,9 @@ void writeMetric(std::ostream& stream, const std::optional<T>& value, double div
 }
 }
 
-CsvExport::CsvExport(const std::string& filename) {
-    openFile(filename);
+CsvExport::CsvExport(const std::string& filename, OpenMode mode)
+    : filePath(filename), openOnFirstWrite(mode == OpenMode::OnFirstWrite) {
+    if (!openOnFirstWrite) openFile(filename);
 }
 
 CsvExport::~CsvExport() {
@@ -39,6 +40,11 @@ std::string CsvExport::getCurrentTimestamp() {
 
 bool CsvExport::openFile(const std::string& filename) {
     std::lock_guard<std::mutex> lock(fileMutex);
+    openOnFirstWrite = false;
+    return openFileUnlocked(filename);
+}
+
+bool CsvExport::openFileUnlocked(const std::string& filename) {
     filePath = filename;
 
     std::ifstream checkFile(filePath);
@@ -67,6 +73,7 @@ void CsvExport::writeHeader() {
 
 void CsvExport::closeFile() {
     std::lock_guard<std::mutex> lock(fileMutex);
+    openOnFirstWrite = false;
     if (fileStream.is_open()) {
         fileStream.close();
     }
@@ -74,6 +81,10 @@ void CsvExport::closeFile() {
 
 void CsvExport::logSnapshot(const SystemSnapshot& snapshot) {
     std::lock_guard<std::mutex> lock(fileMutex);
+    if (openOnFirstWrite) {
+        openOnFirstWrite = false;
+        openFileUnlocked(filePath);
+    }
     if (!fileStream.is_open()) return;
 
     fileStream << getCurrentTimestamp() << "," << std::fixed << std::setprecision(2);
