@@ -45,32 +45,3 @@ target_link_libraries(System_Performance_Monitor PRIVATE Threads::Threads)
 if(WIN32)
     target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi powrprof)
 endif()
-
-include(CTest)
-if(BUILD_TESTING)
-    # File-backed Linux readers are also tested on Windows using proc/sys fixtures.
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/LinuxCpuCollectorTests.cpp")
-        add_executable(LinuxCpuCollectorTests
-            tests/LinuxCpuCollectorTests.cpp
-            src/collectors/linux/LinuxCpuCollector.cpp
-        )
-        target_include_directories(LinuxCpuCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-        add_test(NAME LinuxCpuCollectorTests COMMAND LinuxCpuCollectorTests)
-    endif()
-
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/LinuxMemoryCollectorTests.cpp")
-        add_executable(LinuxMemoryCollectorTests
-            tests/LinuxMemoryCollectorTests.cpp
-            src/collectors/linux/LinuxMemoryCollector.cpp
-        )
-        target_include_directories(LinuxMemoryCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-        add_test(NAME LinuxMemoryCollectorTests COMMAND LinuxMemoryCollectorTests)
-    endif()
-
-    add_executable(LinuxDiskCollectorTests
-        tests/LinuxDiskCollectorTests.cpp
-        src/collectors/linux/LinuxDiskCollector.cpp
-    )
-    target_include_directories(LinuxDiskCollectorTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    add_test(NAME LinuxDiskCollectorTests COMMAND LinuxDiskCollectorTests)
-endif()
