@@ -6,7 +6,7 @@
 #include "collectors/IGpuCollector.hpp"
 #include "collectors/IDiskCollector.hpp"
 
-#include "storage/CsvExport.hpp"
+#include "core/ISnapshotSink.hpp"
 
 #include <thread>
 #include <mutex>
@@ -30,11 +30,17 @@ private:
 
     std::atomic<int> sampleIntervalMs{1000};// default 1 second
 
-    std::unique_ptr<CsvExport> csvLogger;
+    std::unique_ptr<ISnapshotSink> snapshotSink;
     std::atomic<bool> loggingEnabled{false};
 
 public:
-    SystemMonitor();
+    // Ownership is transferred to the monitor. Null collectors represent
+    // unavailable devices/platform backends; a null sink disables logging.
+    SystemMonitor(std::unique_ptr<ICpuCollector> cpu,
+                  std::unique_ptr<IMemoryCollector> memory,
+                  std::unique_ptr<IGpuCollector> gpu,
+                  std::unique_ptr<IDiskCollector> disk,
+                  std::unique_ptr<ISnapshotSink> sink = nullptr);
     ~SystemMonitor();
 
     void start();
@@ -42,7 +48,7 @@ public:
     void setIntervalMs(int ms);
     int getIntervalMs() const;
 
-    void enableLogging(bool enable, const std::string& filename = "system_metrics.csv");
+    void enableLogging(bool enable);
     bool isLoggingEnabled() const;
 
     SystemSnapshot getLatestSnapshot() const;

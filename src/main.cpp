@@ -5,6 +5,11 @@
 #include <thread>
 
 #include "core/SystemMonitor.hpp"
+#include "collectors/CpuCollectorFactory.hpp"
+#include "collectors/MemoryCollectorFactory.hpp"
+#include "collectors/GpuCollectorFactory.hpp"
+#include "collectors/DiskCollectorFactory.hpp"
+#include "storage/CsvExport.hpp"
 #include "ui/ConsoleDisplay.hpp"
 #include "ui/ConsoleInput.hpp"
 
@@ -122,7 +127,15 @@ int main() {
         std::cerr << "Could not install the console shutdown handler.\n";
         return 1;
     }
-    SystemMonitor systemMonitor;
+    // Composition root: platform selection and storage configuration belong
+    // here, while SystemMonitor depends only on their interfaces.
+    SystemMonitor systemMonitor(
+        CpuCollectorFactory::createCpuCollector(),
+        MemoryCollectorFactory::createMemoryCollector(),
+        GpuCollectorFactory::createGpuCollector(),
+        DiskCollectorFactory::createDiskCollector(),
+        std::make_unique<CsvExport>("system_metrics.csv", CsvExport::OpenMode::OnFirstWrite)
+    );
     ConsoleInput input;
     bool running = true;
     while (running && !shouldExit()) {

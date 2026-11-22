@@ -1,17 +1,16 @@
 #include "core/SystemMonitor.hpp"
-#include "collectors/CpuCollectorFactory.hpp"
-#include "collectors/DiskCollectorFactory.hpp"
-#include "collectors/MemoryCollectorFactory.hpp"
-#include "collectors/GpuCollectorFactory.hpp"
 
 #include <chrono>
+#include <utility>
 
-SystemMonitor::SystemMonitor() {
-    cpuCollector = CpuCollectorFactory::createCpuCollector();
-    ramCollector = MemoryCollectorFactory::createMemoryCollector();
-    diskCollector = DiskCollectorFactory::createDiskCollector();
-    gpuCollector = GpuCollectorFactory::createGpuCollector();
-}
+SystemMonitor::SystemMonitor(std::unique_ptr<ICpuCollector> cpu,
+                             std::unique_ptr<IMemoryCollector> memory,
+                             std::unique_ptr<IGpuCollector> gpu,
+                             std::unique_ptr<IDiskCollector> disk,
+                             std::unique_ptr<ISnapshotSink> sink)
+    : cpuCollector(std::move(cpu)), ramCollector(std::move(memory)),
+      gpuCollector(std::move(gpu)), diskCollector(std::move(disk)),
+      snapshotSink(std::move(sink)) {}
 
 SystemMonitor::~SystemMonitor() {
     stop();
@@ -44,8 +43,8 @@ SystemSnapshot SystemMonitor::sampleOnce() {
         currentSnapshot = snapshot;
     }
 
-    if (loggingEnabled.load() && csvLogger) {
-        csvLogger->logSnapshot(snapshot);
+    if (loggingEnabled.load() && snapshotSink) {
+        snapshotSink->consume(snapshot);
     }
 
     return snapshot;
@@ -73,15 +72,8 @@ int SystemMonitor::getIntervalMs() const {
     return sampleIntervalMs.load();
 }
 
-void SystemMonitor::enableLogging(bool enable, const std::string& filename) {
-    if (enable) {
-        if (!csvLogger) {
-            csvLogger = std::make_unique<CsvExport>(filename);
-        }
-        loggingEnabled = true;
-    } else {
-        loggingEnabled = false;
-    }
+void SystemMonitor::enableLogging(bool enable) {
+    loggingEnabled = enable && snapshotSink != nullptr;
 }
 
 bool SystemMonitor::isLoggingEnabled() const {
