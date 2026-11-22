@@ -53,7 +53,10 @@ void ConsoleDisplay::renderDashboard(const CpuData& cpu, const RamData& ram, con
     std::cout << std::fixed << std::setprecision(2) << "\n VRAM Total/Used: ";
     showScaled(gpu.info.totalVramMB, 1024.0);
     std::cout << " GiB / "; showScaled(gpu.metrics.usedVramMB, 1024.0);
-    std::cout << " GiB\n 3D Engine     : "; showUsage(gpu.metrics.usagePercentage);
+    std::cout << " GiB\n"
+              << (gpu.metrics.usageScope == GpuUsageScope::ThreeDEngine
+                      ? " 3D Engine     : " : " GPU Usage     : ");
+    showUsage(gpu.metrics.usagePercentage);
     std::cout << "\n Temperature   : "; show(gpu.metrics.temperatureC);
     std::cout << " C\n\n[ Disk ] " << (disk.info.driveLetter.empty() ? "N/A" : disk.info.driveLetter);
     std::cout << std::fixed << std::setprecision(2) << "\n Total / Used  : ";

@@ -1,8 +1,11 @@
 #pragma once
 #include <optional>
 
+enum class GpuUsageScope { Device, ThreeDEngine };
+
 struct GpuMetrics {
     std::optional<double> usagePercentage;
     std::optional<double> usedVramMB;
     std::optional<double> temperatureC;
+    GpuUsageScope usageScope = GpuUsageScope::Device;
 };

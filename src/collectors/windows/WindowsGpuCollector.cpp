@@ -127,6 +127,7 @@ std::optional<double> WindowsGpuCollector::getUsedVramMb() {
 }
 GpuData WindowsGpuCollector::collectGpuData() {
     GpuData data{};
+    data.metrics.usageScope = GpuUsageScope::ThreeDEngine;
     data.info.gpuName = gpuName;
     data.info.totalVramMB = totalVramMB;
     data.info.driverVersion = driverVersion;
