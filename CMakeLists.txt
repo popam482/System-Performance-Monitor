@@ -19,6 +19,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/collectors/linux/LinuxCpuCollector.cpp
         src/collectors/linux/LinuxMemoryCollector.cpp
         src/collectors/linux/LinuxDiskCollector.cpp
+        src/collectors/linux/LinuxGpuCollector.cpp
     )
 else()
     message(FATAL_ERROR "Supported platforms are Windows and Linux.")
@@ -42,6 +43,9 @@ target_include_directories(System_Performance_Monitor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/collectors
 )
 target_link_libraries(System_Performance_Monitor PRIVATE Threads::Threads)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(System_Performance_Monitor PRIVATE ${CMAKE_DL_LIBS})
+endif()
 if(WIN32)
     target_link_libraries(System_Performance_Monitor PRIVATE pdh wbemuuid ole32 oleaut32 dxgi powrprof)
 endif()
